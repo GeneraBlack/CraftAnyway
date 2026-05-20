@@ -1,0 +1,18 @@
+# Gradle files
+.gradle/
+build/
+run/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS-specific
+Thumbs.db
+Desktop.ini
