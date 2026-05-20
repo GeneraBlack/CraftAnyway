@@ -12,6 +12,8 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -37,10 +39,10 @@ jobs:
         shell: bash
 
       - name: Publish to CurseForge
-        uses: KirqyMC/publish-mod-action@v2
+        uses: Kir-Antipov/mc-publish@v3
         with:
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          curseforge-id: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+          curseforge-id: ${{ secrets.CURSEFORGE_PROJECT_ID || vars.CURSEFORGE_PROJECT_ID }}
           
           name: "CraftAnyway v${{ steps.get_version.outputs.version }}"
           version: "${{ steps.get_version.outputs.version }}"
