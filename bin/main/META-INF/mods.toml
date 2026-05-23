@@ -1,6 +1,7 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
+issueTrackerURL="https://github.com/Antigravity/CraftAnyway/issues"
 
 [[mods]]
 modId="${mod_id}"
@@ -8,24 +9,25 @@ version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
 description='''${mod_description}'''
+logoFile="logo.png"
 
 [[dependencies.${mod_id}]]
-    modId="neoforge"
-    type="required"
-    versionRange="${neo_version_range}"
+    modId="forge"
+    mandatory=true
+    versionRange="[${forge_version},)"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="minecraft"
-    type="required"
+    mandatory=true
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="jei"
-    type="optional"
-    versionRange="[19.0.0,)"
+    mandatory=false
+    versionRange="[15.0.0,)"
     ordering="NONE"
     side="CLIENT"

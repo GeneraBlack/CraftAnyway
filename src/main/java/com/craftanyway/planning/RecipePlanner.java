@@ -13,7 +13,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -87,7 +87,7 @@ public class RecipePlanner {
             
             for (Object recipeObj : recipes) {
                 // If it's a vanilla RecipeHolder, we can extract ingredients
-                if (recipeObj instanceof RecipeHolder<?> holder && holder.value() instanceof Recipe<?> recipe) {
+                if (recipeObj instanceof Recipe<?> recipe) {
                     // Check if this recipe contains any ingredient that is already in visited (circular dependency)
                     boolean hasCycle = false;
                     for (Ingredient ingredient : recipe.getIngredients()) {

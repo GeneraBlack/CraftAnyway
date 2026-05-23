@@ -254,22 +254,17 @@ public class PlanScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
         if (scrollY > 0) {
             zoom *= 1.1;
         } else if (scrollY < 0) {
             zoom /= 1.1;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolled(mouseX, mouseY, scrollY);
     }
 
     @Override
     public boolean isPauseScreen() {
         return false;
-    }
-
-    @Override
-    protected void renderBlurredBackground(float partialTick) {
-        // Do nothing to prevent the vanilla background blur shader from being applied, keeping the panning/zooming tree completely crisp!
     }
 }
