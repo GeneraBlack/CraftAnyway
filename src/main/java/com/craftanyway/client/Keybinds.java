@@ -50,8 +50,9 @@ public class Keybinds {
 
     private static boolean tryOpenPlanUI() {
         ItemStack ingredientUnderMouse = CraftAnywayJeiPlugin.getIngredientUnderMouse();
+        Minecraft mc = Minecraft.getInstance();
+        
         if (ingredientUnderMouse != null && !ingredientUnderMouse.isEmpty()) {
-            Minecraft mc = Minecraft.getInstance();
             if (mc.level != null) {
                 RecipePlanner.plan(ingredientUnderMouse);
                 
@@ -63,6 +64,12 @@ public class Keybinds {
                         mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("No craftable recipe found for " + ingredientUnderMouse.getHoverName().getString()), false);
                     }
                 }
+            }
+        } else {
+            // No item under mouse. Re-open the current PlanScreen if available.
+            if (RecipePlanner.getCurrentPlan() != null && !RecipePlanner.getAlternativePlans().isEmpty()) {
+                mc.setScreen(new PlanScreen(RecipePlanner.getAlternativePlans()));
+                return true;
             }
         }
         return false;

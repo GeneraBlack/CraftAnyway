@@ -23,14 +23,23 @@
 - **Leftover Yield Tracking:** If a sub-craft yields 4 items (like Planks) but you only need 2, the remaining 2 are tracked as virtual "leftovers" to satisfy sibling nodes.
 - **Accurate Child Scaling:** Child requirements scale down dynamically based on possessed intermediate components (e.g., having 6/8 Planks scales the Log requirement to 1 Log instead of 2!).
 
-### 💎 Premium "Alternatives" HUD & GCD Fraction Simplification
-- Dynamically tracks intermediate components you partially possess.
-- Displays counts as simplified fractions using Greatest Common Divisor (GCD) math (e.g. possessing 6 of 8 required Planks renders as `3/4 (6/8) Oak Planks`!).
+### 📝 Smart Step-by-Step Breakdown
+- Replaces confusing "Alternatives" lists with an intuitive **Step-by-Step To-Do List** organized from raw materials (bottom-up) to final assembly.
+- Each step intelligently groups the ingredients you need to craft at that stage of the tech tree.
+
+### 🧠 Intelligent Inventory-Aware Tag Resolution
+- When a recipe accepts "any" item from a tag (e.g. Any Planks), the planner recursively scans all possibilities.
+- It dynamically subtracts costs based on your **actual inventory**, automatically selecting the variant you already have the raw materials for (e.g. choosing Spruce Planks over Oak Planks because you have Spruce Logs).
+
+### 🎯 Interactive Variant Picker
+- "Any" tag items chosen by the planner are indicated with a yellow `*` in the visual tree.
+- Click on the node to open the **Variant Picker Menu**, allowing you to manually override the planner's choice (e.g. forcing Oak Planks).
+- The planner instantly recalculates the entire tech tree and saves your variant preference!
 
 ### 🛒 Persistent HUD & Chest Shopping List
-- Displays remaining missing raw materials on your main HUD.
+- Displays your Crafting Steps on your main HUD.
 - Automatically docks next to Chests and containers.
-- Automatically hides items as soon as they are fully satisfied.
+- Numbers turn green dynamically the moment you gather enough of a specific item, keeping you perfectly on track!
 
 ### ⚡ Smart Packet-Safe Auto-Crafting
 - Click **Craft Plan** inside a Crafting Table to let the state machine automatically place items.

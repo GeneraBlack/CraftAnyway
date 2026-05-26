@@ -43,57 +43,29 @@ public class ShoppingListOverlay {
 
         CraftingPlan.PlanResult result = plan.calculateRequirements(inv);
 
-        boolean hasRaw = false;
-        for (ItemStack stack : result.rawMaterials.values()) {
-            int needed = stack.getCount();
-            int have = inv != null ? countItem(inv, stack.getItem()) : 0;
-            int missing = Math.max(0, needed - have);
-            if (missing > 0) {
-                hasRaw = true;
-                break;
-            }
-        }
+        if (result.steps.isEmpty()) return;
 
         int ry = y;
+        guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFAA);
+        ry += 15;
 
-        if (hasRaw) {
-            guiGraphics.drawString(mc.font, "Shopping List:", x, ry, 0xFFFFAA);
-            ry += 15;
+        for (CraftingPlan.CraftingStep step : result.steps) {
+            guiGraphics.drawString(mc.font, "Step " + step.stepNumber + ":", x, ry, 0xAAAAAA);
+            ry += 12;
 
-            for (ItemStack stack : result.rawMaterials.values()) {
-                int needed = stack.getCount();
-                int have = inv != null ? countItem(inv, stack.getItem()) : 0;
-                int missing = Math.max(0, needed - have);
-
-                if (missing <= 0) continue; // Hide fully satisfied items
-
-                guiGraphics.renderItem(stack, x, ry);
-                guiGraphics.renderItemDecorations(mc.font, stack, x, ry);
-
-                guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, 0xFFFFFF);
-                ry += 20;
-            }
-        }
-
-        if (!result.alternatives.isEmpty()) {
-            if (hasRaw) {
-                ry += 5;
-            }
-            guiGraphics.drawString(mc.font, "Alternatives:", x, ry, 0xFFFFAA);
-            ry += 15;
-
-            for (CraftingPlan.AlternativeItem alt : result.alternatives.values()) {
-                ItemStack stack = alt.getStack();
-                int have = alt.getHave();
-                int needed = alt.getNeeded();
+            for (CraftingPlan.StepItem stepItem : step.items.values()) {
+                ItemStack stack = stepItem.stack;
+                int have = stepItem.have;
+                int needed = stepItem.needed;
 
                 guiGraphics.renderItem(stack, x, ry);
                 guiGraphics.renderItemDecorations(mc.font, stack, x, ry);
 
-                String fractionStr = getFractionString(have, needed) + " (" + have + "/" + needed + ")";
-                guiGraphics.drawString(mc.font, fractionStr, x + 20, ry + 4, 0xAAAAAA);
+                int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
+                guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
                 ry += 20;
             }
+            ry += 5;
         }
     }
 

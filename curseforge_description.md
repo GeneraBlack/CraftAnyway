@@ -21,14 +21,23 @@ Tired of manually clicking through complex recipes, calculating raw materials in
 - **Yield Leftovers Simulation:** Recipes that produce multiple items (like Planks from Logs) are accurately modeled. Leftover items from a sub-craft (e.g., crafting 4 Planks when you only need 2, leaving 2 leftovers) are virtually placed back into your inventory to satisfy other sibling recipe slots!
 - **Dynamic Child Scaling:** Child requirements scale down dynamically based on possessed intermediate components. If you need 8 Planks and have 6 Planks, the mod knows you only need to craft 2 Planks, accurately scaling the child requirement down to 1 Log (instead of 2!).
 
-### 💎 Premium "Alternatives" HUD
-- Intermediate components that you *partially* possess are tracked and displayed in a dedicated **Alternatives** section on both the HUD shopping list and the Plan Screen.
-- **GCD Fraction Simplification:** Inventory counts are mathematically simplified using Greatest Common Divisor (GCD) logic! Having 6 out of 8 required Oak Planks is beautifully formatted as `3/4 (6/8) Oak Planks`, giving you a premium, intuitive readout.
+### 📝 Smart Step-by-Step Breakdown
+- Replaces confusing "Alternatives" lists with an intuitive **Step-by-Step To-Do List** organized from raw materials (bottom-up) to final assembly.
+- Each step intelligently groups the ingredients you need to craft at that stage of the tech tree.
+
+### 🧠 Intelligent Inventory-Aware Tag Resolution
+- When a recipe accepts "any" item from a tag (e.g. Any Planks), the planner recursively scans all possibilities.
+- It dynamically subtracts costs based on your **actual inventory**, automatically selecting the variant you already have the raw materials for (e.g. choosing Spruce Planks over Oak Planks because you have Spruce Logs).
+
+### 🎯 Interactive Variant Picker
+- "Any" tag items chosen by the planner are indicated with a yellow `*` in the visual tree.
+- Click on the node to open the **Variant Picker Menu**, allowing you to manually override the planner's choice (e.g. forcing Oak Planks).
+- The planner instantly recalculates the entire tech tree and saves your variant preference!
 
 ### 🛒 Persistent HUD & Chest Shopping List
-- Once a plan is selected, a persistent shopping list overlay sits on your main HUD while exploring, showing exactly what raw materials you are missing.
-- When you open a Chest, the list automatically docks to the side, allowing you to see what you need to grab in real-time.
-- Items are automatically removed from the list as soon as you have gathered enough, keeping your view completely clean.
+- Displays your Crafting Steps on your main HUD.
+- Automatically docks next to Chests and containers.
+- Numbers turn green dynamically the moment you gather enough of a specific item, keeping you perfectly on track!
 
 ### ⚡ Smart Packet-Safe Auto-Crafting
 - Open a Crafting Table and press **Craft Plan** to let the mod automatically assemble your items.

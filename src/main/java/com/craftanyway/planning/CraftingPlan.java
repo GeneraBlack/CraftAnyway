@@ -9,6 +9,7 @@ import net.minecraft.world.item.crafting.Recipe;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 public class CraftingPlan {
     private final ItemStack target;
@@ -27,21 +28,38 @@ public class CraftingPlan {
         return rootNode;
     }
 
-    public static class PlanResult {
-        public final Map<String, ItemStack> rawMaterials;
-        public final Map<String, AlternativeItem> alternatives;
+    public static class StepItem {
+        public final ItemStack stack;
+        public final int needed;
+        public final int have;
+        
+        public StepItem(ItemStack stack, int needed, int have) {
+            this.stack = stack;
+            this.needed = needed;
+            this.have = have;
+        }
+    }
 
-        public PlanResult(Map<String, ItemStack> rawMaterials, Map<String, AlternativeItem> alternatives) {
-            this.rawMaterials = rawMaterials;
-            this.alternatives = alternatives;
+    public static class CraftingStep {
+        public final int stepNumber;
+        public final Map<String, StepItem> items = new HashMap<>();
+        
+        public CraftingStep(int stepNumber) {
+            this.stepNumber = stepNumber;
+        }
+    }
+
+    public static class PlanResult {
+        public final List<CraftingStep> steps;
+
+        public PlanResult(List<CraftingStep> steps) {
+            this.steps = steps;
         }
     }
 
     public PlanResult calculateRequirements(Inventory inv) {
-        Map<String, ItemStack> rawMaterials = new HashMap<>();
-        Map<String, AlternativeItem> alternatives = new HashMap<>();
+        Map<Integer, CraftingStep> stepMap = new HashMap<>();
         
-        // Initialize virtual inventory with player's inventory counts
         Map<Item, Integer> remainingInv = new HashMap<>();
         if (inv != null) {
             for (int i = 0; i < inv.getContainerSize(); i++) {
@@ -52,93 +70,82 @@ public class CraftingPlan {
             }
         }
         
-        // Dynamic top-down aggregation
         if (rootNode != null) {
-            aggregate(rootNode, rootNode.getOutput().getCount(), remainingInv, rawMaterials, alternatives, inv);
+            aggregateSteps(rootNode, rootNode.getOutput().getCount(), 0, remainingInv, stepMap, inv);
         }
         
-        return new PlanResult(rawMaterials, alternatives);
+        List<CraftingStep> stepList = new ArrayList<>();
+        int maxDepth = stepMap.keySet().stream().max(Integer::compareTo).orElse(0);
+        
+        int currentStepNum = 1;
+        for (int d = maxDepth; d > 0; d--) {
+            CraftingStep s = stepMap.get(d);
+            if (s != null && !s.items.isEmpty()) {
+                CraftingStep realStep = new CraftingStep(currentStepNum++);
+                realStep.items.putAll(s.items);
+                stepList.add(realStep);
+            }
+        }
+        
+        return new PlanResult(stepList);
     }
 
-    private void aggregate(PlanNode node, int neededAmount, Map<Item, Integer> remainingInv, 
-                           Map<String, ItemStack> rawMaterials, Map<String, AlternativeItem> alternatives, Inventory inv) {
+    private void aggregateSteps(PlanNode node, int neededAmount, int depth, Map<Item, Integer> remainingInv, 
+                           Map<Integer, CraftingStep> stepMap, Inventory inv) {
         if (node == null) return;
 
         ItemStack output = node.getOutput();
         Item item = output.getItem();
 
-        // 1. Consume virtual inventory for intermediate items (non-leaf)
         int remainingNeeded = neededAmount;
-        if (!node.isLeaf()) {
-            int haveAvailable = remainingInv.getOrDefault(item, 0);
-            int used = Math.min(neededAmount, haveAvailable);
-            remainingInv.put(item, haveAvailable - used);
-            remainingNeeded = neededAmount - used;
+        
+        int haveAvailable = remainingInv.getOrDefault(item, 0);
+        int used = Math.min(neededAmount, haveAvailable);
+        remainingInv.put(item, haveAvailable - used);
+        remainingNeeded = neededAmount - used;
 
-            // 2. Track alternative if player has a partial count of this intermediate component
-            if (inv != null) {
-                int actualHave = countItemInInventory(inv, item);
-                if (actualHave > 0 && actualHave < neededAmount) {
-                    String key = item.getDescriptionId();
-                    if (!alternatives.containsKey(key)) {
-                        ItemStack copy = output.copy();
-                        copy.setCount(actualHave);
-                        alternatives.put(key, new AlternativeItem(copy, actualHave, neededAmount));
-                    } else {
-                        AlternativeItem existing = alternatives.get(key);
-                        int newNeeded = existing.getNeeded() + neededAmount;
-                        ItemStack copy = output.copy();
-                        copy.setCount(actualHave);
-                        alternatives.put(key, new AlternativeItem(copy, actualHave, newNeeded));
-                    }
-                }
+        if (depth > 0 && neededAmount > 0) {
+            CraftingStep step = stepMap.computeIfAbsent(depth, CraftingStep::new);
+            String key = item.getDescriptionId();
+            
+            int actualHave = inv != null ? countItemInInventory(inv, item) : 0;
+            
+            if (step.items.containsKey(key)) {
+                StepItem existing = step.items.get(key);
+                step.items.put(key, new StepItem(output, existing.needed + neededAmount, actualHave));
+            } else {
+                step.items.put(key, new StepItem(output, neededAmount, actualHave));
             }
         }
 
-        // 3. If fully satisfied, stop recursing
-        if (remainingNeeded <= 0) {
+        if (remainingNeeded <= 0 || node.isLeaf()) {
             return;
         }
 
-        // 4. If leaf node, add remaining requirements to raw materials
-        if (node.isLeaf()) {
-            String key = item.getDescriptionId();
-            if (rawMaterials.containsKey(key)) {
-                rawMaterials.get(key).grow(remainingNeeded);
-            } else {
-                ItemStack copy = output.copy();
-                copy.setCount(remainingNeeded);
-                rawMaterials.put(key, copy);
-            }
-        } else {
-            // 5. Craft intermediate item: calculate yield, leftovers, and child requirements
-            int recipeYield = 1;
-            if (node.getRecipe() != null) {
-                Minecraft mc = Minecraft.getInstance();
-                if (mc.level != null) {
-                    try {
-                        ItemStack result = node.getRecipe().getResultItem(mc.level.registryAccess());
-                        if (!result.isEmpty()) {
-                            recipeYield = result.getCount();
-                        }
-                    } catch (Exception e) {
-                        // fallback
+        int recipeYield = 1;
+        if (node.getRecipe() != null) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                try {
+                    ItemStack result = node.getRecipe().getResultItem(mc.level.registryAccess());
+                    if (!result.isEmpty()) {
+                        recipeYield = result.getCount();
                     }
-                }
+                } catch (Exception e) {}
             }
-            if (recipeYield <= 0) recipeYield = 1;
+        }
+        if (recipeYield <= 0) recipeYield = 1;
 
-            int craftsNeeded = (int) Math.ceil((double) remainingNeeded / recipeYield);
-            int produced = craftsNeeded * recipeYield;
-            int leftover = produced - remainingNeeded;
+        int craftsNeeded = (int) Math.ceil((double) remainingNeeded / recipeYield);
+        int produced = craftsNeeded * recipeYield;
+        int leftover = produced - remainingNeeded;
 
-            if (leftover > 0) {
-                remainingInv.put(item, remainingInv.getOrDefault(item, 0) + leftover);
-            }
+        if (leftover > 0) {
+            remainingInv.put(item, remainingInv.getOrDefault(item, 0) + leftover);
+        }
 
-            for (PlanNode child : node.getChildren()) {
-                aggregate(child, craftsNeeded, remainingInv, rawMaterials, alternatives, inv);
-            }
+        for (PlanNode child : node.getChildren()) {
+            aggregateSteps(child, craftsNeeded, depth + 1, remainingInv, stepMap, inv);
         }
     }
 
@@ -153,31 +160,6 @@ public class CraftingPlan {
         return count;
     }
 
-    public static class AlternativeItem {
-        private final ItemStack stack;
-        private final int have;
-        private final int needed;
-        
-        public AlternativeItem(ItemStack stack, int have, int needed) {
-            this.stack = stack;
-            this.have = have;
-            this.needed = needed;
-        }
-        
-        public ItemStack getStack() {
-            return stack;
-        }
-        
-        public int getHave() {
-            return have;
-        }
-        
-        public int getNeeded() {
-            return needed;
-        }
-    }
-
-
     public static class PlanNode {
         private final ItemStack output;
         private final String categoryName;
@@ -185,14 +167,42 @@ public class CraftingPlan {
         private final Recipe<?> recipe;
         private final int craftsNeeded;
         private final List<PlanNode> children;
+        private final int cost;
+        private final String recipeId;
+        private final ItemStack[] tagOptions;
+        private final String tagSignature;
 
-        public PlanNode(ItemStack output, String categoryName, boolean isCraftingTable, Recipe<?> recipe, int craftsNeeded, List<PlanNode> children) {
+        public PlanNode(ItemStack output, String categoryName, boolean isCraftingTable, Recipe<?> recipe, int craftsNeeded, List<PlanNode> children, int cost, String recipeId) {
+            this(output, categoryName, isCraftingTable, recipe, craftsNeeded, children, cost, recipeId, null, null);
+        }
+
+        public PlanNode(ItemStack output, String categoryName, boolean isCraftingTable, Recipe<?> recipe, int craftsNeeded, List<PlanNode> children, int cost, String recipeId, ItemStack[] tagOptions, String tagSignature) {
             this.output = output;
             this.categoryName = categoryName;
             this.isCraftingTable = isCraftingTable;
             this.recipe = recipe;
             this.craftsNeeded = craftsNeeded;
             this.children = children;
+            this.cost = cost;
+            this.recipeId = recipeId;
+            this.tagOptions = tagOptions;
+            this.tagSignature = tagSignature;
+        }
+
+        public ItemStack[] getTagOptions() {
+            return tagOptions;
+        }
+
+        public String getTagSignature() {
+            return tagSignature;
+        }
+
+        public String getRecipeId() {
+            return recipeId;
+        }
+
+        public int getCost() {
+            return cost;
         }
 
         public ItemStack getOutput() {

@@ -20,24 +20,41 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
 
 public class RecipePlanner {
     
     private static CraftingPlan currentPlan = null;
     private static List<CraftingPlan> alternativePlans = new ArrayList<>();
+    public static Map<String, String> userPreferences = new java.util.HashMap<>();
+    public static Map<String, String> tagPreferences = new java.util.HashMap<>();
+
+    public static class RecipeOption {
+        public final String recipeId;
+        public final String name;
+        public final int cost;
+        public RecipeOption(String recipeId, String name, int cost) {
+            this.recipeId = recipeId;
+            this.name = name;
+            this.cost = cost;
+        }
+    }
 
     public static void plan(ItemStack target) {
         if (target == null || target.isEmpty()) return;
         
         alternativePlans.clear();
         IJeiRuntime jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+        Minecraft mc = Minecraft.getInstance();
+        Inventory inv = mc.player != null ? mc.player.getInventory() : null;
         
         if (jeiRuntime != null) {
             // Find ALL recipes for the root item across all JEI categories
-            List<CraftingPlan.PlanNode> rootNodes = buildNodesForTarget(target, new HashSet<>(), true);
+            List<CraftingPlan.PlanNode> rootNodes = buildNodesForTarget(target, new HashSet<>(), true, inv);
             
             if (rootNodes.isEmpty()) {
-                CraftingPlan.PlanNode rootNode = new CraftingPlan.PlanNode(target, "None", false, null, 1, new ArrayList<>());
+                int rawCost = getCostWithInventory(target, inv);
+                CraftingPlan.PlanNode rootNode = new CraftingPlan.PlanNode(target, "None", false, null, target.getCount(), new ArrayList<>(), rawCost, "craftanyway:raw");
                 alternativePlans.add(new CraftingPlan(target, rootNode));
             } else {
                 for (CraftingPlan.PlanNode node : rootNodes) {
@@ -63,7 +80,28 @@ public class RecipePlanner {
         return alternativePlans;
     }
 
-    private static List<CraftingPlan.PlanNode> buildNodesForTarget(ItemStack target, Set<String> visited, boolean isRoot) {
+    public static List<RecipeOption> getAvailableOptions(ItemStack target) {
+        Minecraft mc = Minecraft.getInstance();
+        Inventory inv = mc.player != null ? mc.player.getInventory() : null;
+        List<RecipeOption> options = new ArrayList<>();
+        List<CraftingPlan.PlanNode> nodes = buildNodesForTarget(target, new HashSet<>(), true, inv);
+        for (CraftingPlan.PlanNode n : nodes) {
+            options.add(new RecipeOption(n.getRecipeId(), n.getCategoryName(), n.getCost()));
+        }
+        return options;
+    }
+
+    public static List<RecipeOption> getVariantOptions(CraftingPlan.PlanNode node) {
+        List<RecipeOption> options = new ArrayList<>();
+        if (node.getTagOptions() != null) {
+            for (ItemStack opt : node.getTagOptions()) {
+                options.add(new RecipeOption(opt.getItem().toString(), opt.getHoverName().getString(), 0));
+            }
+        }
+        return options;
+    }
+
+    private static List<CraftingPlan.PlanNode> buildNodesForTarget(ItemStack target, Set<String> visited, boolean isRoot, Inventory inv) {
         List<CraftingPlan.PlanNode> nodes = new ArrayList<>();
         String itemId = target.getItem().toString();
         if (visited.contains(itemId)) {
@@ -72,6 +110,10 @@ public class RecipePlanner {
         
         IJeiRuntime jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime == null) return nodes;
+
+        int rawCost = getCostWithInventory(target, inv);
+        CraftingPlan.PlanNode rawNode = new CraftingPlan.PlanNode(target, "Raw", false, null, target.getCount(), new ArrayList<>(), rawCost, "craftanyway:raw");
+        nodes.add(rawNode);
 
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
@@ -83,6 +125,10 @@ public class RecipePlanner {
         List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList();
         
         for (IRecipeCategory<?> category : categories) {
+            if (category.getRecipeType().getUid().getPath().equals("information")) {
+                continue;
+            }
+
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList();
             
             for (Object recipeObj : recipes) {
@@ -94,8 +140,14 @@ public class RecipePlanner {
                         if (ingredient.isEmpty()) continue;
                         ItemStack[] items = ingredient.getItems();
                         if (items.length > 0) {
-                            ItemStack bestItem = selectBestIngredient(items);
-                            if (visited.contains(bestItem.getItem().toString())) {
+                            boolean allVisited = true;
+                            for (ItemStack opt : items) {
+                                if (!visited.contains(opt.getItem().toString())) {
+                                    allVisited = false;
+                                    break;
+                                }
+                            }
+                            if (allVisited) {
                                 hasCycle = true;
                                 break;
                             }
@@ -123,67 +175,124 @@ public class RecipePlanner {
                     }
                     int craftsNeeded = (int) Math.ceil((double) requestedAmount / recipeYield);
                     
+                    int totalCost = craftsNeeded; // 1 cost per craft operation
+                    
                     for (Ingredient ingredient : recipe.getIngredients()) {
                         if (ingredient.isEmpty()) continue;
                         
                         ItemStack[] items = ingredient.getItems();
                         if (items.length > 0) {
-                            ItemStack bestItem = selectBestIngredient(items);
-                            ItemStack subTarget = bestItem.copy();
+                            String tagSignature = null;
+                            if (items.length > 1) {
+                                List<String> ids = new ArrayList<>();
+                                for (ItemStack stack : items) ids.add(stack.getItem().toString());
+                                java.util.Collections.sort(ids);
+                                tagSignature = String.join(",", ids);
+                            }
                             
-                            // 1 ingredient in the list usually means 1 item required per craft.
-                            // Multiply by craftsNeeded.
-                            subTarget.setCount(craftsNeeded);
+                            String preferredVariant = tagSignature != null ? tagPreferences.get(tagSignature) : null;
                             
-                            // Recursively find recipes for this sub-target
-                            List<CraftingPlan.PlanNode> subNodes = buildNodesForTarget(subTarget, visited, false);
-                            if (!subNodes.isEmpty()) {
-                                children.add(subNodes.get(0));
-                            } else {
-                                // Leaf node (raw material)
-                                children.add(new CraftingPlan.PlanNode(subTarget, "Raw", false, null, craftsNeeded, new ArrayList<>()));
+                            CraftingPlan.PlanNode bestChild = null;
+                            int minChildCost = Integer.MAX_VALUE;
+                            
+                            for (ItemStack opt : items) {
+                                if (preferredVariant != null && !opt.getItem().toString().equals(preferredVariant)) {
+                                    continue;
+                                }
+                                
+                                ItemStack subTarget = opt.copy();
+                                subTarget.setCount(craftsNeeded);
+                                
+                                List<CraftingPlan.PlanNode> subNodes = buildNodesForTarget(subTarget, visited, false, inv);
+                                CraftingPlan.PlanNode candidate;
+                                if (!subNodes.isEmpty()) {
+                                    candidate = subNodes.get(0);
+                                } else {
+                                    int fallbackCost = getCostWithInventory(subTarget, inv);
+                                    candidate = new CraftingPlan.PlanNode(subTarget, "Raw", false, null, craftsNeeded, new ArrayList<>(), fallbackCost, "craftanyway:raw");
+                                }
+                                
+                                if (candidate.getCost() < minChildCost) {
+                                    minChildCost = candidate.getCost();
+                                    bestChild = candidate;
+                                }
+                            }
+                            
+                            if (bestChild != null) {
+                                if (items.length > 1) {
+                                    bestChild = new CraftingPlan.PlanNode(bestChild.getOutput(), bestChild.getCategoryName(), bestChild.isCraftingTable(), bestChild.getRecipe(), bestChild.getCraftsNeeded(), bestChild.getChildren(), bestChild.getCost(), bestChild.getRecipeId(), items, tagSignature);
+                                }
+                                children.add(bestChild);
+                                totalCost += bestChild.getCost();
                             }
                         }
                     }
                     
                     visited.remove(itemId);
-                    nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), isCrafting, recipe, craftsNeeded, children));
-                    
-                    if (!isRoot) {
-                        // For sub-components, just return the first valid recipe node to keep tree manageable
-                        return nodes;
-                    }
+                    String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
+                    nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), isCrafting, recipe, craftsNeeded, children, totalCost, recipeId));
                 } else {
                     // Non-standard recipe (e.g. JEI custom wrapper), treat as leaf with category name
                     int craftsNeeded = target.getCount();
-                    nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), false, null, craftsNeeded, new ArrayList<>()));
-                    if (!isRoot) return nodes;
+                    int fallbackCost = getCostWithInventory(target, inv);
+                    String recipeId = "jei:" + category.getRecipeType().getUid().toString();
+                    nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), false, null, craftsNeeded, new ArrayList<>(), fallbackCost, recipeId));
                 }
             }
+        }
+        
+        if (!isRoot && !nodes.isEmpty()) {
+            CraftingPlan.PlanNode chosen = nodes.get(0);
+            String pref = userPreferences.get(itemId);
+            
+            if (pref != null) {
+                for (CraftingPlan.PlanNode n : nodes) {
+                    if (n.getRecipeId().equals(pref)) {
+                        chosen = n;
+                        break;
+                    }
+                }
+            } else {
+                for (CraftingPlan.PlanNode n : nodes) {
+                    if (n.getCost() < chosen.getCost()) {
+                        chosen = n;
+                    }
+                }
+            }
+            nodes.clear();
+            nodes.add(chosen);
+        } else if (isRoot && nodes.size() > 1) {
+            nodes.sort((a, b) -> Integer.compare(a.getCost(), b.getCost()));
+            List<CraftingPlan.PlanNode> filtered = new ArrayList<>();
+            for (CraftingPlan.PlanNode n : nodes) {
+                if (n == rawNode && nodes.size() > 1 && n.getCost() > nodes.get(0).getCost()) {
+                    continue; // Hide the useless raw alternative if a better crafting path exists
+                }
+                
+                // Avoid adding exact duplicate structures (e.g. two identical recipes from different categories)
+                boolean isDuplicate = false;
+                for (CraftingPlan.PlanNode existing : filtered) {
+                    if (existing.getCategoryName().equals(n.getCategoryName()) && existing.getCost() == n.getCost()) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                if (!isDuplicate) {
+                    filtered.add(n);
+                }
+                
+                if (filtered.size() >= 3) break; // Keep at most 3 alternatives for root
+            }
+            nodes = filtered;
         }
         
         return nodes;
     }
     
-    private static ItemStack selectBestIngredient(ItemStack[] options) {
-        if (options.length == 1) return options[0];
-        
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) {
-            Inventory inv = mc.player.getInventory();
-            ItemStack best = options[0];
-            int maxCount = -1;
-            
-            for (ItemStack opt : options) {
-                int count = countItem(inv, opt.getItem());
-                if (count > maxCount) {
-                    maxCount = count;
-                    best = opt;
-                }
-            }
-            return best;
-        }
-        return options[0];
+    private static int getCostWithInventory(ItemStack target, Inventory inv) {
+        int have = inv != null ? countItem(inv, target.getItem()) : 0;
+        int missing = Math.max(0, target.getCount() - have);
+        return RecipeWeights.getRawCost(target.getItem()) * missing;
     }
     
     private static int countItem(Inventory inv, Item item) {

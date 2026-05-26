@@ -12,6 +12,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 public class PlanScreen extends Screen {
 
@@ -20,6 +21,28 @@ public class PlanScreen extends Screen {
     private double panY = 0;
     private double zoom = 1.0;
     private ItemStack targetItem;
+
+    private static class NodeHitbox {
+        CraftingPlan.PlanNode node;
+        int x, y, width, height;
+        NodeHitbox(CraftingPlan.PlanNode node, int x, int y, int width, int height) {
+            this.node = node;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+        boolean contains(double mx, double my) {
+            return mx >= x && mx <= x + width && my >= y && my <= y + height;
+        }
+    }
+    private List<NodeHitbox> nodeHitboxes = new ArrayList<>();
+
+    private boolean popupActive = false;
+    private CraftingPlan.PlanNode popupNode = null;
+    private List<RecipePlanner.RecipeOption> popupOptions = null;
+    private List<RecipePlanner.RecipeOption> popupVariants = null;
+    private double popupX, popupY;
 
     public PlanScreen(List<CraftingPlan> plans) {
         super(Component.literal("Crafting Plan Tree"));
@@ -76,6 +99,8 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().translate(panX, panY, 0);
         guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
 
+        nodeHitboxes.clear();
+
         int startX = 100;
         for (int i = 0; i < plans.size(); i++) {
             CraftingPlan plan = plans.get(i);
@@ -85,67 +110,37 @@ public class PlanScreen extends Screen {
             CraftingPlan.PlanResult result = plan.calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
 
             int ry = 20;
-            boolean hasRequired = false;
             int rx = xPos - 40;
 
-            for (ItemStack stack : result.rawMaterials.values()) {
-                int needed = stack.getCount();
-                int have = this.minecraft.player != null ? countItem(this.minecraft.player.getInventory(), stack.getItem()) : 0;
-                int missing = Math.max(0, needed - have);
-                if (missing > 0) {
-                    hasRequired = true;
-                    break;
-                }
-            }
-
-            if (hasRequired) {
-                guiGraphics.drawString(this.font, "Required Materials:", xPos - 40, ry, 0xFFFFAA);
+            if (!result.steps.isEmpty()) {
+                guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", xPos - 40, ry, 0xFFFFAA);
                 ry += 15;
-                for (ItemStack stack : result.rawMaterials.values()) {
-                    int needed = stack.getCount();
-                    int have = this.minecraft.player != null ? countItem(this.minecraft.player.getInventory(), stack.getItem()) : 0;
-                    int missing = Math.max(0, needed - have);
-
-                    if (missing <= 0) continue;
-
-                    ItemStack copy = stack.copy();
-                    copy.setCount(missing);
-
-                    guiGraphics.renderItem(copy, rx, ry);
-                    guiGraphics.renderItemDecorations(this.font, copy, rx, ry);
-                    rx += 20;
-                    if (rx > xPos + 120) {
-                        rx = xPos - 40;
-                        ry += 20;
+                for (CraftingPlan.CraftingStep step : result.steps) {
+                    guiGraphics.drawString(this.font, "Step " + step.stepNumber + ":", xPos - 40, ry, 0xAAAAAA);
+                    ry += 15;
+                    rx = xPos - 40;
+                    
+                    for (CraftingPlan.StepItem stepItem : step.items.values()) {
+                        ItemStack stack = stepItem.stack.copy();
+                        guiGraphics.renderItem(stack, rx, ry);
+                        guiGraphics.renderItemDecorations(this.font, stack, rx, ry);
+                        
+                        String text = stepItem.have + "/" + stepItem.needed;
+                        guiGraphics.pose().pushPose();
+                        guiGraphics.pose().scale(0.75f, 0.75f, 1f);
+                        guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
+                        guiGraphics.pose().popPose();
+                        
+                        rx += 25;
+                        if (rx > xPos + 120) {
+                            rx = xPos - 40;
+                            ry += 25;
+                        }
                     }
+                    ry += 25;
                 }
-                ry += 25;
             } else {
                 ry += 5;
-            }
-
-            if (!result.alternatives.isEmpty()) {
-                guiGraphics.drawString(this.font, "Alternatives:", xPos - 40, ry, 0xFFFFAA);
-                ry += 15;
-                rx = xPos - 40;
-                for (CraftingPlan.AlternativeItem alt : result.alternatives.values()) {
-                    ItemStack stack = alt.getStack();
-                    guiGraphics.renderItem(stack, rx, ry);
-                    guiGraphics.renderItemDecorations(this.font, stack, rx, ry);
-
-                    String frac = getFractionString(alt.getHave(), alt.getNeeded());
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().scale(0.75f, 0.75f, 1f);
-                    guiGraphics.drawString(this.font, frac, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
-                    guiGraphics.pose().popPose();
-
-                    rx += 25;
-                    if (rx > xPos + 120) {
-                        rx = xPos - 40;
-                        ry += 25;
-                    }
-                }
-                ry += 25;
             }
 
             drawNodeTree(guiGraphics, plan.getRootNode(), xPos, ry + 20);
@@ -160,6 +155,59 @@ public class PlanScreen extends Screen {
         if (targetItem != null) {
             guiGraphics.drawString(this.font, "Qty: " + targetItem.getCount(), 35, 36, 0xFFFFFF);
         }
+
+        if (popupActive && popupOptions != null) {
+            renderPopup(guiGraphics, mouseX, mouseY);
+        }
+    }
+
+    private void renderPopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        int width = 200;
+        int rowHeight = 20;
+        int headerHeight = 15;
+        
+        int optionsCount = popupOptions != null ? popupOptions.size() : 0;
+        int variantsCount = popupVariants != null ? popupVariants.size() : 0;
+        
+        int totalRows = optionsCount + variantsCount;
+        int height = totalRows * rowHeight + 10;
+        if (optionsCount > 0) height += headerHeight;
+        if (variantsCount > 0) height += headerHeight;
+        
+        guiGraphics.fill((int)popupX, (int)popupY, (int)popupX + width, (int)popupY + height, 0xEE0A0A0A);
+        guiGraphics.renderOutline((int)popupX, (int)popupY, width, height, 0xFFAAAAAA);
+        
+        int currentY = (int)popupY + 5;
+        
+        if (optionsCount > 0) {
+            guiGraphics.drawString(this.font, "Alternative Recipes:", (int)popupX + 5, currentY, 0xAAAAAA);
+            currentY += headerHeight;
+            for (RecipePlanner.RecipeOption opt : popupOptions) {
+                boolean hovered = mouseX >= popupX && mouseX <= popupX + width && mouseY >= currentY && mouseY <= currentY + rowHeight;
+                if (hovered) {
+                    guiGraphics.fill((int)popupX + 1, currentY, (int)popupX + width - 1, currentY + rowHeight, 0x55FFFFFF);
+                }
+                
+                String text = opt.name + " (Cost: " + opt.cost + ")";
+                guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xFFFFAA : 0xFFFFFF);
+                currentY += rowHeight;
+            }
+        }
+        
+        if (variantsCount > 0) {
+            guiGraphics.drawString(this.font, "Alternative Variants:", (int)popupX + 5, currentY, 0xAAAAAA);
+            currentY += headerHeight;
+            for (RecipePlanner.RecipeOption opt : popupVariants) {
+                boolean hovered = mouseX >= popupX && mouseX <= popupX + width && mouseY >= currentY && mouseY <= currentY + rowHeight;
+                if (hovered) {
+                    guiGraphics.fill((int)popupX + 1, currentY, (int)popupX + width - 1, currentY + rowHeight, 0x55FFFFFF);
+                }
+                
+                String text = opt.name;
+                guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xAAFFAA : 0xFFFFFF);
+                currentY += rowHeight;
+            }
+        }
     }
 
     private void drawNodeTree(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y) {
@@ -168,6 +216,11 @@ public class PlanScreen extends Screen {
         // Draw item
         guiGraphics.renderItem(node.getOutput(), x - 8, y);
         guiGraphics.renderItemDecorations(this.font, node.getOutput(), x - 8, y);
+        nodeHitboxes.add(new NodeHitbox(node, x - 8, y, 16, 16));
+        
+        if (node.getTagOptions() != null && node.getTagOptions().length > 1) {
+            guiGraphics.drawString(this.font, "*", x + 4, y - 4, 0xFFFF55);
+        }
 
         // Draw category text below item
         String cat = node.getCategoryName();
@@ -244,6 +297,84 @@ public class PlanScreen extends Screen {
             }
         }
         return count;
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (popupActive) {
+            int width = 200;
+            int rowHeight = 20;
+            int headerHeight = 15;
+            
+            int optionsCount = popupOptions != null ? popupOptions.size() : 0;
+            int variantsCount = popupVariants != null ? popupVariants.size() : 0;
+            
+            int totalRows = optionsCount + variantsCount;
+            int height = totalRows * rowHeight + 10;
+            if (optionsCount > 0) height += headerHeight;
+            if (variantsCount > 0) height += headerHeight;
+            
+            if (mouseX >= popupX && mouseX <= popupX + width && mouseY >= popupY && mouseY <= popupY + height) {
+                int currentY = (int)popupY + 5;
+                
+                if (optionsCount > 0) {
+                    currentY += headerHeight;
+                    for (RecipePlanner.RecipeOption opt : popupOptions) {
+                        if (mouseY >= currentY && mouseY <= currentY + rowHeight) {
+                            RecipePlanner.userPreferences.put(popupNode.getOutput().getItem().toString(), opt.recipeId);
+                            RecipePlanner.plan(targetItem);
+                            this.plans = RecipePlanner.getAlternativePlans();
+                            this.clearWidgets();
+                            this.init();
+                            popupActive = false;
+                            return true;
+                        }
+                        currentY += rowHeight;
+                    }
+                }
+                
+                if (variantsCount > 0) {
+                    currentY += headerHeight;
+                    for (RecipePlanner.RecipeOption opt : popupVariants) {
+                        if (mouseY >= currentY && mouseY <= currentY + rowHeight) {
+                            RecipePlanner.tagPreferences.put(popupNode.getTagSignature(), opt.recipeId);
+                            RecipePlanner.plan(targetItem);
+                            this.plans = RecipePlanner.getAlternativePlans();
+                            this.clearWidgets();
+                            this.init();
+                            popupActive = false;
+                            return true;
+                        }
+                        currentY += rowHeight;
+                    }
+                }
+            } else {
+                popupActive = false;
+                return true;
+            }
+        }
+
+        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+
+        if (button == 0 || button == 1) { // Left or right click
+            double worldX = (mouseX - panX) / zoom;
+            double worldY = (mouseY - panY) / zoom;
+
+            for (NodeHitbox box : nodeHitboxes) {
+                if (box.contains(worldX, worldY)) {
+                    this.popupActive = true;
+                    this.popupNode = box.node;
+                    ItemStack targetForOptions = box.node.getOutput().copy();
+                    this.popupOptions = RecipePlanner.getAvailableOptions(targetForOptions);
+                    this.popupVariants = RecipePlanner.getVariantOptions(box.node);
+                    this.popupX = mouseX;
+                    this.popupY = mouseY;
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     @Override
