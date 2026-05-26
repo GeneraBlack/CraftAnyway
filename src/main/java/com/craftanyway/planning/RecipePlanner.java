@@ -15,6 +15,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.core.NonNullList;
 
 
 import java.util.ArrayList;
@@ -130,13 +131,14 @@ public class RecipePlanner {
             
             String categoryName = category.getTitle().getString();
             
-            // For standard recipes (RecipeHolder), add one option per unique recipe
+            // Standard and custom modded recipes
             for (Object recipeObj : recipes) {
-                if (recipeObj instanceof RecipeHolder<?> holder) {
-                    String recipeId = holder.id().toString();
+                Recipe<?> recipe = extractRecipeFromObject(recipeObj);
+                if (recipe != null) {
+                    String recipeId = extractRecipeIdFromObject(recipeObj, recipe);
                     int ingredientCount = 0;
                     List<ItemStack> previewItems = new ArrayList<>();
-                    for (Ingredient ing : holder.value().getIngredients()) {
+                    for (Ingredient ing : extractIngredientsFromRecipe(recipe)) {
                         if (!ing.isEmpty()) {
                             ingredientCount++;
                             ItemStack[] items = ing.getItems();
@@ -221,12 +223,12 @@ public class RecipePlanner {
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
             
             for (Object recipeObj : recipes) {
-                // If it's a vanilla RecipeHolder, we can extract ingredients
-                if (recipeObj instanceof RecipeHolder<?> holder) {
-                    Recipe<?> recipe = holder.value();
+                Recipe<?> recipe = extractRecipeFromObject(recipeObj);
+                if (recipe != null) {
                     // Check if this recipe contains any ingredient that is already in visited (circular dependency)
                     boolean hasCycle = false;
-                    for (Ingredient ingredient : recipe.getIngredients()) {
+                    List<Ingredient> ingredients = extractIngredientsFromRecipe(recipe);
+                    for (Ingredient ingredient : ingredients) {
                         if (ingredient.isEmpty()) continue;
                         ItemStack[] items = ingredient.getItems();
                         if (items.length > 0) {
@@ -256,12 +258,8 @@ public class RecipePlanner {
                     int recipeYield = 1;
                     Minecraft mc = Minecraft.getInstance();
                     if (mc.level != null) {
-                        try {
-                            ItemStack result = recipe.getResultItem(mc.level.registryAccess());
-                            if (!result.isEmpty()) recipeYield = result.getCount();
-                        } catch (Exception e) {
-                            // fallback
-                        }
+                        ItemStack result = extractResultFromRecipe(recipe, mc.level.registryAccess());
+                        if (!result.isEmpty()) recipeYield = result.getCount();
                     }
                     int craftsNeeded = (int) Math.ceil((double) requestedAmount / recipeYield);
                     
@@ -269,8 +267,8 @@ public class RecipePlanner {
                     
                     java.util.Map<String, ItemStack> groupedIngredients = new java.util.HashMap<>();
                     java.util.Map<String, ItemStack[]> groupedOptions = new java.util.HashMap<>();
-
-                    for (Ingredient ingredient : recipe.getIngredients()) {
+ 
+                    for (Ingredient ingredient : ingredients) {
                         if (ingredient.isEmpty()) continue;
                         
                         ItemStack[] items = ingredient.getItems();
@@ -304,7 +302,7 @@ public class RecipePlanner {
                             }
                         }
                     }
-
+ 
                     for (java.util.Map.Entry<String, ItemStack> entry : groupedIngredients.entrySet()) {
                         ItemStack groupedTarget = entry.getValue();
                         ItemStack[] items = groupedOptions.get(entry.getKey());
@@ -334,7 +332,7 @@ public class RecipePlanner {
                     }
                     
                     visited.remove(itemId);
-                    String recipeId = holder.id().toString();
+                    String recipeId = extractRecipeIdFromObject(recipeObj, recipe);
                     nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), isCrafting, recipe, craftsNeeded, children, totalCost, recipeId));
                 } else {
                     // Non-standard recipe (e.g. JEI custom wrapper), treat as leaf with category name
@@ -409,5 +407,164 @@ public class RecipePlanner {
             }
         }
         return count;
+    }
+
+    private static Recipe<?> extractRecipeFromObject(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof Recipe<?> r) return r;
+        if (obj instanceof RecipeHolder<?> holder) return holder.value();
+        
+        // Scan fields of obj
+        Class<?> clazz = obj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(obj);
+                    if (value instanceof Recipe<?> r) {
+                        return r;
+                    }
+                    if (value instanceof RecipeHolder<?> holder) {
+                        return holder.value();
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return null;
+    }
+
+    private static String extractRecipeIdFromObject(Object obj, Recipe<?> recipe) {
+        if (obj instanceof RecipeHolder<?> holder) {
+            return holder.id().toString();
+        }
+        
+        // Scan fields of obj for RecipeHolder
+        Class<?> clazz = obj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(obj);
+                    if (value instanceof RecipeHolder<?> holder) {
+                        return holder.id().toString();
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        
+        // Fallback to class name + hash code if we only have a raw Recipe
+        if (recipe != null) {
+            return "recipe:" + recipe.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(recipe));
+        }
+        return "unknown";
+    }
+
+    private static List<Ingredient> extractIngredientsFromRecipe(Recipe<?> recipe) {
+        try {
+            NonNullList<Ingredient> standard = recipe.getIngredients();
+            if (standard != null && !standard.isEmpty()) {
+                return standard;
+            }
+        } catch (Exception e) {
+            // Ignore standard extraction errors
+        }
+        
+        // Reflection fallback for custom modded recipes (like OritechRecipe)
+        List<Ingredient> extracted = new ArrayList<>();
+        Class<?> clazz = recipe.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(recipe);
+                    if (value == null) continue;
+                    
+                    if (value instanceof List<?> list) {
+                        for (Object element : list) {
+                            if (element instanceof Ingredient ing) {
+                                extracted.add(ing);
+                            } else if (element instanceof ItemStack stack) {
+                                if (!stack.isEmpty()) {
+                                    extracted.add(Ingredient.of(stack));
+                                }
+                            }
+                        }
+                        if (!extracted.isEmpty()) return extracted;
+                    } else if (value instanceof Ingredient[] arr) {
+                        for (Ingredient ing : arr) {
+                            if (ing != null && !ing.isEmpty()) {
+                                extracted.add(ing);
+                            }
+                        }
+                        if (!extracted.isEmpty()) return extracted;
+                    } else if (value instanceof ItemStack[] arr) {
+                        for (ItemStack stack : arr) {
+                            if (stack != null && !stack.isEmpty()) {
+                                extracted.add(Ingredient.of(stack));
+                            }
+                        }
+                        if (!extracted.isEmpty()) return extracted;
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return extracted;
+    }
+
+    private static ItemStack extractResultFromRecipe(Recipe<?> recipe, net.minecraft.core.RegistryAccess registryAccess) {
+        try {
+            ItemStack standard = recipe.getResultItem(registryAccess);
+            if (standard != null && !standard.isEmpty()) {
+                return standard;
+            }
+        } catch (Exception e) {
+            // Ignore standard extraction errors
+        }
+        
+        // Reflection fallback for custom modded recipes (like OritechRecipe)
+        Class<?> clazz = recipe.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(recipe);
+                    if (value == null) continue;
+                    
+                    if (value instanceof List<?> list) {
+                        for (Object element : list) {
+                            if (element instanceof ItemStack stack) {
+                                if (!stack.isEmpty()) {
+                                    return stack;
+                                }
+                            }
+                        }
+                    } else if (value instanceof ItemStack stack) {
+                        if (!stack.isEmpty()) {
+                            return stack;
+                        }
+                    } else if (value instanceof ItemStack[] arr) {
+                        for (ItemStack stack : arr) {
+                            if (stack != null && !stack.isEmpty()) {
+                                return stack;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        
+        return ItemStack.EMPTY;
     }
 }
