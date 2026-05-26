@@ -119,27 +119,43 @@ public class RecipePlanner {
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
         // Normalize the item stack to match JEI's registered ingredient EXACTLY
+        // Collect ALL variants of the item (some mods/recipes might output variants with different data components)
         var ingredientManager = jeiRuntime.getIngredientManager();
-        ItemStack focusStack = new ItemStack(target.getItem()); // default if not found
+        List<IFocus<ItemStack>> focuses = new ArrayList<>();
+        
         for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
             if (stack.getItem() == target.getItem()) {
-                focusStack = stack.copy();
-                break;
+                var typedOpt = ingredientManager.createTypedIngredient(stack);
+                if (typedOpt.isPresent()) {
+                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+                }
             }
         }
         
-        var typedTargetOpt = ingredientManager.createTypedIngredient(focusStack);
-        if (typedTargetOpt.isEmpty()) return nodes;
+        // Default fallback if JEI index doesn't have it
+        if (focuses.isEmpty()) {
+            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
+            if (typedOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+            }
+        }
         
-        IFocus<ItemStack> focus = jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedTargetOpt.get());
-        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList();
+        if (focuses.isEmpty()) return nodes;
+        
+        Set<IRecipeCategory<?>> categories = new HashSet<>();
+        for (IFocus<ItemStack> focus : focuses) {
+            categories.addAll(recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList());
+        }
         
         for (IRecipeCategory<?> category : categories) {
             if (category.getRecipeType().getUid().getPath().equals("information")) {
                 continue;
             }
 
-            List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList();
+            Set<Object> recipes = new HashSet<>();
+            for (IFocus<ItemStack> focus : focuses) {
+                recipes.addAll(recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList());
+            }
             
             for (Object recipeObj : recipes) {
                 // If it's a vanilla RecipeHolder, we can extract ingredients

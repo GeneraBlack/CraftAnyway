@@ -178,6 +178,9 @@ public class PlanScreen extends Screen {
         if (optionsCount > 0) height += headerHeight;
         if (variantsCount > 0) height += headerHeight;
         
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 400);
+
         guiGraphics.fill((int)popupX, (int)popupY, (int)popupX + width, (int)popupY + height, 0xEE0A0A0A);
         guiGraphics.renderOutline((int)popupX, (int)popupY, width, height, 0xFFAAAAAA);
         
@@ -212,6 +215,8 @@ public class PlanScreen extends Screen {
                 currentY += rowHeight;
             }
         }
+        
+        guiGraphics.pose().popPose();
     }
 
     private void drawNodeTree(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y) {
