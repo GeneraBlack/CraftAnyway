@@ -83,13 +83,70 @@ public class RecipePlanner {
     }
 
     public static List<RecipeOption> getAvailableOptions(ItemStack target) {
+        List<RecipeOption> options = new ArrayList<>();
+        
+        // Always offer "Raw" as an option
         Minecraft mc = Minecraft.getInstance();
         Inventory inv = mc.player != null ? mc.player.getInventory() : null;
-        List<RecipeOption> options = new ArrayList<>();
-        List<CraftingPlan.PlanNode> nodes = buildNodesForTarget(target, new HashSet<>(), true, inv);
-        for (CraftingPlan.PlanNode n : nodes) {
-            options.add(new RecipeOption(n.getRecipeId(), n.getCategoryName(), n.getCost()));
+        int rawCost = getCostWithInventory(target, inv);
+        options.add(new RecipeOption("craftanyway:raw", "Raw", rawCost));
+        
+        // Query JEI directly for all recipe categories that produce this item
+        IJeiRuntime jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+        if (jeiRuntime == null) return options;
+        
+        IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
+        var ingredientManager = jeiRuntime.getIngredientManager();
+        
+        // Build focuses for this item (same normalization as buildNodesForTarget)
+        List<IFocus<ItemStack>> focuses = new ArrayList<>();
+        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
+            if (stack.getItem() == target.getItem()) {
+                var typedOpt = ingredientManager.createTypedIngredient(stack);
+                if (typedOpt.isPresent()) {
+                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+                }
+            }
         }
+        if (focuses.isEmpty()) {
+            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
+            if (typedOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+            }
+        }
+        if (focuses.isEmpty()) return options;
+        
+        // Get all categories that produce this item
+        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
+        
+        for (IRecipeCategory<?> category : categories) {
+            String catPath = category.getRecipeType().getUid().getPath();
+            if (catPath.equals("information")) continue;
+            
+            List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
+            if (recipes.isEmpty()) continue;
+            
+            String categoryName = category.getTitle().getString();
+            
+            // For standard recipes (RecipeHolder), add one option per unique recipe
+            for (Object recipeObj : recipes) {
+                if (recipeObj instanceof RecipeHolder<?> holder) {
+                    String recipeId = holder.id().toString();
+                    // Calculate a rough cost based on ingredient count
+                    int ingredientCount = 0;
+                    for (Ingredient ing : holder.value().getIngredients()) {
+                        if (!ing.isEmpty()) ingredientCount++;
+                    }
+                    int cost = ingredientCount * target.getCount();
+                    options.add(new RecipeOption(recipeId, categoryName, cost));
+                } else {
+                    // Non-standard JEI recipe wrapper
+                    String recipeId = "jei:" + category.getRecipeType().getUid().toString();
+                    options.add(new RecipeOption(recipeId, categoryName, 0));
+                }
+            }
+        }
+        
         return options;
     }
 
