@@ -35,10 +35,12 @@ public class RecipePlanner {
         public final String recipeId;
         public final String name;
         public final int cost;
-        public RecipeOption(String recipeId, String name, int cost) {
+        public final List<ItemStack> previewItems;
+        public RecipeOption(String recipeId, String name, int cost, List<ItemStack> previewItems) {
             this.recipeId = recipeId;
             this.name = name;
             this.cost = cost;
+            this.previewItems = previewItems;
         }
     }
 
@@ -89,7 +91,7 @@ public class RecipePlanner {
         Minecraft mc = Minecraft.getInstance();
         Inventory inv = mc.player != null ? mc.player.getInventory() : null;
         int rawCost = getCostWithInventory(target, inv);
-        options.add(new RecipeOption("craftanyway:raw", "Raw", rawCost));
+        options.add(new RecipeOption("craftanyway:raw", "Raw", rawCost, new ArrayList<>()));
         
         // Query JEI directly for all recipe categories that produce this item
         IJeiRuntime jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
@@ -132,17 +134,23 @@ public class RecipePlanner {
             for (Object recipeObj : recipes) {
                 if (recipeObj instanceof RecipeHolder<?> holder) {
                     String recipeId = holder.id().toString();
-                    // Calculate a rough cost based on ingredient count
                     int ingredientCount = 0;
+                    List<ItemStack> previewItems = new ArrayList<>();
                     for (Ingredient ing : holder.value().getIngredients()) {
-                        if (!ing.isEmpty()) ingredientCount++;
+                        if (!ing.isEmpty()) {
+                            ingredientCount++;
+                            ItemStack[] items = ing.getItems();
+                            if (items.length > 0) {
+                                previewItems.add(items[0]);
+                            }
+                        }
                     }
                     int cost = ingredientCount * target.getCount();
-                    options.add(new RecipeOption(recipeId, categoryName, cost));
+                    options.add(new RecipeOption(recipeId, categoryName, cost, previewItems));
                 } else {
                     // Non-standard JEI recipe wrapper
                     String recipeId = "jei:" + category.getRecipeType().getUid().toString();
-                    options.add(new RecipeOption(recipeId, categoryName, 0));
+                    options.add(new RecipeOption(recipeId, categoryName, 0, new ArrayList<>()));
                 }
             }
         }
@@ -154,7 +162,9 @@ public class RecipePlanner {
         List<RecipeOption> options = new ArrayList<>();
         if (node.getTagOptions() != null) {
             for (ItemStack opt : node.getTagOptions()) {
-                options.add(new RecipeOption(opt.getItem().toString(), opt.getHoverName().getString(), 0));
+                List<ItemStack> preview = new ArrayList<>();
+                preview.add(opt);
+                options.add(new RecipeOption(opt.getItem().toString(), opt.getHoverName().getString(), 0, preview));
             }
         }
         return options;

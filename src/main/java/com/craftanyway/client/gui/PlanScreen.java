@@ -166,12 +166,31 @@ public class PlanScreen extends Screen {
     }
 
     private void renderPopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        int width = 200;
+        int textWidth = 150;
         int rowHeight = 20;
         int headerHeight = 15;
         
         int optionsCount = popupOptions != null ? popupOptions.size() : 0;
         int variantsCount = popupVariants != null ? popupVariants.size() : 0;
+        
+        int maxItems = 0;
+        if (popupOptions != null) {
+            for (RecipePlanner.RecipeOption opt : popupOptions) {
+                if (opt.previewItems != null) {
+                    maxItems = Math.max(maxItems, opt.previewItems.size());
+                }
+            }
+        }
+        if (popupVariants != null) {
+            for (RecipePlanner.RecipeOption opt : popupVariants) {
+                if (opt.previewItems != null) {
+                    maxItems = Math.max(maxItems, opt.previewItems.size());
+                }
+            }
+        }
+        
+        int width = textWidth + (maxItems * 18) + 10;
+        if (width < 200) width = 200;
         
         int totalRows = optionsCount + variantsCount;
         int height = totalRows * rowHeight + 10;
@@ -195,8 +214,18 @@ public class PlanScreen extends Screen {
                     guiGraphics.fill((int)popupX + 1, currentY, (int)popupX + width - 1, currentY + rowHeight, 0x55FFFFFF);
                 }
                 
-                String text = opt.name + " (Cost: " + opt.cost + ")";
+                String text = opt.name;
+                if (opt.cost > 0) text += " (Cost: " + opt.cost + ")";
                 guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xFFFFAA : 0xFFFFFF);
+                
+                if (opt.previewItems != null) {
+                    int itemX = (int)popupX + textWidth;
+                    for (net.minecraft.world.item.ItemStack stack : opt.previewItems) {
+                        guiGraphics.renderItem(stack, itemX, currentY + 2);
+                        itemX += 18;
+                    }
+                }
+                
                 currentY += rowHeight;
             }
         }
@@ -212,6 +241,15 @@ public class PlanScreen extends Screen {
                 
                 String text = opt.name;
                 guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xAAFFAA : 0xFFFFFF);
+                
+                if (opt.previewItems != null) {
+                    int itemX = (int)popupX + textWidth;
+                    for (net.minecraft.world.item.ItemStack stack : opt.previewItems) {
+                        guiGraphics.renderItem(stack, itemX, currentY + 2);
+                        itemX += 18;
+                    }
+                }
+                
                 currentY += rowHeight;
             }
         }
