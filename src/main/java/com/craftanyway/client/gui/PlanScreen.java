@@ -91,9 +91,13 @@ public class PlanScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Draw a premium custom dark opaque background to avoid Minecraft's default blur shader and prevent ghosting
+        guiGraphics.fill(0, 0, this.width, this.height, 0xFF0A0A0A);
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        // Draw a premium custom dark semi-transparent background to avoid Minecraft's default blur shader
-        guiGraphics.fill(0, 0, this.width, this.height, 0xD00A0A0A);
         
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(panX, panY, 0);
