@@ -1,5 +1,6 @@
 package com.craftanyway.planning;
 
+
 import com.craftanyway.jei.CraftAnywayJeiPlugin;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -142,20 +143,15 @@ public class RecipePlanner {
         
         if (focuses.isEmpty()) return nodes;
         
-        Set<IRecipeCategory<?>> categories = new HashSet<>();
-        for (IFocus<ItemStack> focus : focuses) {
-            categories.addAll(recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList());
-        }
+        // Pass all focuses at once - JEI handles OR-logic internally
+        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
         
         for (IRecipeCategory<?> category : categories) {
             if (category.getRecipeType().getUid().getPath().equals("information")) {
                 continue;
             }
 
-            Set<Object> recipes = new HashSet<>();
-            for (IFocus<ItemStack> focus : focuses) {
-                recipes.addAll(recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList());
-            }
+            List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
             
             for (Object recipeObj : recipes) {
                 // If it's a vanilla RecipeHolder, we can extract ingredients
