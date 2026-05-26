@@ -118,9 +118,8 @@ public class RecipePlanner {
 
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
-        // Find categories that produce this item
-        ItemStack focusStack = target.copy();
-        focusStack.setCount(1);
+        // Find categories that produce this item. Strip all data components by creating a fresh ItemStack
+        ItemStack focusStack = new ItemStack(target.getItem());
         var typedTargetOpt = jeiRuntime.getIngredientManager().createTypedIngredient(focusStack);
         if (typedTargetOpt.isEmpty()) return nodes;
         
