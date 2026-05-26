@@ -18,7 +18,7 @@ public class CraftAnywayJeiPlugin implements IModPlugin {
 
     @Override
     public @NotNull ResourceLocation getPluginUid() {
-        return new ResourceLocation(CraftAnyway.MODID, "jei_plugin");
+        return ResourceLocation.fromNamespaceAndPath(CraftAnyway.MODID, "jei_plugin");
     }
 
     @Override

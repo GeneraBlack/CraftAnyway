@@ -7,12 +7,12 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.IEventBus;
+import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.bus.api.IEventBus;
 import org.lwjgl.glfw.GLFW;
 
 public class Keybinds {
@@ -26,8 +26,8 @@ public class Keybinds {
 
     public static void register(IEventBus modEventBus) {
         modEventBus.addListener(Keybinds::onRegisterKeyMappings);
-        MinecraftForge.EVENT_BUS.addListener(Keybinds::onKeyInput);
-        MinecraftForge.EVENT_BUS.addListener(Keybinds::onScreenKeyPressed);
+        NeoForge.EVENT_BUS.addListener(Keybinds::onKeyInput);
+        NeoForge.EVENT_BUS.addListener(Keybinds::onScreenKeyPressed);
     }
 
     private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {

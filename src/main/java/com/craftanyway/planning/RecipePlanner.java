@@ -13,6 +13,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 
 
 import java.util.ArrayList;
@@ -133,7 +134,8 @@ public class RecipePlanner {
             
             for (Object recipeObj : recipes) {
                 // If it's a vanilla RecipeHolder, we can extract ingredients
-                if (recipeObj instanceof Recipe<?> recipe) {
+                if (recipeObj instanceof RecipeHolder<?> holder) {
+                    Recipe<?> recipe = holder.value();
                     // Check if this recipe contains any ingredient that is already in visited (circular dependency)
                     boolean hasCycle = false;
                     for (Ingredient ingredient : recipe.getIngredients()) {
@@ -229,7 +231,7 @@ public class RecipePlanner {
                     }
                     
                     visited.remove(itemId);
-                    String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
+                    String recipeId = holder.id().toString();
                     nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), isCrafting, recipe, craftsNeeded, children, totalCost, recipeId));
                 } else {
                     // Non-standard recipe (e.g. JEI custom wrapper), treat as leaf with category name
