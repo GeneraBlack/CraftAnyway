@@ -100,7 +100,7 @@ public class PlanScreen extends Screen {
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(panX, panY, 0);
+        guiGraphics.pose().translate(panX, panY, 50); // Translate Z by 50 to avoid any background overlap
         guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
 
         nodeHitboxes.clear();
@@ -219,7 +219,9 @@ public class PlanScreen extends Screen {
 
         // Draw item
         guiGraphics.renderItem(node.getOutput(), x - 8, y);
-        guiGraphics.renderItemDecorations(this.font, node.getOutput(), x - 8, y);
+        // Force rendering the count even if 1 to show quantities everywhere
+        String qtyText = String.valueOf(node.getOutput().getCount());
+        guiGraphics.renderItemDecorations(this.font, node.getOutput(), x - 8, y, qtyText);
         nodeHitboxes.add(new NodeHitbox(node, x - 8, y, 16, 16));
         
         if (node.getTagOptions() != null && node.getTagOptions().length > 1) {
