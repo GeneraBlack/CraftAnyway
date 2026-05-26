@@ -33,10 +33,12 @@ public class RecipePlanner {
         public final String recipeId;
         public final String name;
         public final int cost;
-        public RecipeOption(String recipeId, String name, int cost) {
+        public final List<ItemStack> previewItems;
+        public RecipeOption(String recipeId, String name, int cost, List<ItemStack> previewItems) {
             this.recipeId = recipeId;
             this.name = name;
             this.cost = cost;
+            this.previewItems = previewItems;
         }
     }
 
@@ -81,13 +83,76 @@ public class RecipePlanner {
     }
 
     public static List<RecipeOption> getAvailableOptions(ItemStack target) {
+        List<RecipeOption> options = new ArrayList<>();
+        
+        // Always offer "Raw" as an option
         Minecraft mc = Minecraft.getInstance();
         Inventory inv = mc.player != null ? mc.player.getInventory() : null;
-        List<RecipeOption> options = new ArrayList<>();
-        List<CraftingPlan.PlanNode> nodes = buildNodesForTarget(target, new HashSet<>(), true, inv);
-        for (CraftingPlan.PlanNode n : nodes) {
-            options.add(new RecipeOption(n.getRecipeId(), n.getCategoryName(), n.getCost()));
+        int rawCost = getCostWithInventory(target, inv);
+        options.add(new RecipeOption("craftanyway:raw", "Raw", rawCost, new ArrayList<>()));
+        
+        // Query JEI directly for all recipe categories that produce this item
+        IJeiRuntime jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+        if (jeiRuntime == null) return options;
+        
+        IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
+        mezz.jei.api.runtime.IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
+        
+        // Build focuses for this item
+        List<IFocus<ItemStack>> focuses = new ArrayList<>();
+        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
+            if (stack.getItem() == target.getItem()) {
+                var typedOpt = ingredientManager.createTypedIngredient(stack);
+                if (typedOpt.isPresent()) {
+                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+                }
+            }
         }
+        if (focuses.isEmpty()) {
+            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
+            if (typedOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+            }
+        }
+        if (focuses.isEmpty()) return options;
+        
+        // Get all categories that produce this item
+        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
+        
+        for (IRecipeCategory<?> category : categories) {
+            String catPath = category.getRecipeType().getUid().getPath();
+            if (catPath.equals("information")) continue;
+            
+            List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
+            if (recipes.isEmpty()) continue;
+            
+            String categoryName = category.getTitle().getString();
+            
+            // For standard recipes, add one option per unique recipe
+            for (Object recipeObj : recipes) {
+                if (recipeObj instanceof Recipe<?> recipe) {
+                    String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
+                    int ingredientCount = 0;
+                    List<ItemStack> previewItems = new ArrayList<>();
+                    for (Ingredient ing : recipe.getIngredients()) {
+                        if (!ing.isEmpty()) {
+                            ingredientCount++;
+                            ItemStack[] items = ing.getItems();
+                            if (items.length > 0) {
+                                previewItems.add(items[0]);
+                            }
+                        }
+                    }
+                    int cost = ingredientCount * target.getCount();
+                    options.add(new RecipeOption(recipeId, categoryName, cost, previewItems));
+                } else {
+                    // Non-standard JEI recipe wrapper
+                    String recipeId = "jei:" + category.getRecipeType().getUid().toString();
+                    options.add(new RecipeOption(recipeId, categoryName, 0, new ArrayList<>()));
+                }
+            }
+        }
+        
         return options;
     }
 
@@ -95,7 +160,9 @@ public class RecipePlanner {
         List<RecipeOption> options = new ArrayList<>();
         if (node.getTagOptions() != null) {
             for (ItemStack opt : node.getTagOptions()) {
-                options.add(new RecipeOption(opt.getItem().toString(), opt.getHoverName().getString(), 0));
+                List<ItemStack> preview = new ArrayList<>();
+                preview.add(opt);
+                options.add(new RecipeOption(opt.getItem().toString(), opt.getHoverName().getString(), 0, preview));
             }
         }
         return options;
@@ -118,21 +185,40 @@ public class RecipePlanner {
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
         // Find categories that produce this item
-        var typedTargetOpt = jeiRuntime.getIngredientManager().createTypedIngredient(target);
-        if (typedTargetOpt.isEmpty()) return nodes;
+        var ingredientManager = jeiRuntime.getIngredientManager();
+        List<IFocus<ItemStack>> focuses = new ArrayList<>();
         
-        IFocus<ItemStack> focus = jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedTargetOpt.get());
-        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList();
+        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
+            if (stack.getItem() == target.getItem()) {
+                var typedOpt = ingredientManager.createTypedIngredient(stack);
+                if (typedOpt.isPresent()) {
+                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+                }
+            }
+        }
+        
+        // Default fallback if JEI index doesn't have it
+        if (focuses.isEmpty()) {
+            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
+            if (typedOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+            }
+        }
+        
+        if (focuses.isEmpty()) return nodes;
+        
+        // Pass all focuses at once
+        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
         
         for (IRecipeCategory<?> category : categories) {
             if (category.getRecipeType().getUid().getPath().equals("information")) {
                 continue;
             }
 
-            List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList();
+            List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
             
             for (Object recipeObj : recipes) {
-                // If it's a vanilla RecipeHolder, we can extract ingredients
+                // If it's a vanilla Recipe, we can extract ingredients
                 if (recipeObj instanceof Recipe<?> recipe) {
                     // Check if this recipe contains any ingredient that is already in visited (circular dependency)
                     boolean hasCycle = false;
@@ -177,6 +263,9 @@ public class RecipePlanner {
                     
                     int totalCost = craftsNeeded; // 1 cost per craft operation
                     
+                    java.util.Map<String, ItemStack> groupedIngredients = new java.util.HashMap<>();
+                    java.util.Map<String, ItemStack[]> groupedOptions = new java.util.HashMap<>();
+
                     for (Ingredient ingredient : recipe.getIngredients()) {
                         if (ingredient.isEmpty()) continue;
                         
@@ -192,40 +281,52 @@ public class RecipePlanner {
                             
                             String preferredVariant = tagSignature != null ? tagPreferences.get(tagSignature) : null;
                             
-                            CraftingPlan.PlanNode bestChild = null;
-                            int minChildCost = Integer.MAX_VALUE;
-                            
+                            ItemStack chosenOpt = items[0];
                             for (ItemStack opt : items) {
-                                if (preferredVariant != null && !opt.getItem().toString().equals(preferredVariant)) {
-                                    continue;
-                                }
-                                
-                                ItemStack subTarget = opt.copy();
-                                subTarget.setCount(craftsNeeded);
-                                
-                                List<CraftingPlan.PlanNode> subNodes = buildNodesForTarget(subTarget, visited, false, inv);
-                                CraftingPlan.PlanNode candidate;
-                                if (!subNodes.isEmpty()) {
-                                    candidate = subNodes.get(0);
-                                } else {
-                                    int fallbackCost = getCostWithInventory(subTarget, inv);
-                                    candidate = new CraftingPlan.PlanNode(subTarget, "Raw", false, null, craftsNeeded, new ArrayList<>(), fallbackCost, "craftanyway:raw");
-                                }
-                                
-                                if (candidate.getCost() < minChildCost) {
-                                    minChildCost = candidate.getCost();
-                                    bestChild = candidate;
+                                if (preferredVariant != null && opt.getItem().toString().equals(preferredVariant)) {
+                                    chosenOpt = opt;
+                                    break;
                                 }
                             }
                             
-                            if (bestChild != null) {
-                                if (items.length > 1) {
-                                    bestChild = new CraftingPlan.PlanNode(bestChild.getOutput(), bestChild.getCategoryName(), bestChild.isCraftingTable(), bestChild.getRecipe(), bestChild.getCraftsNeeded(), bestChild.getChildren(), bestChild.getCost(), bestChild.getRecipeId(), items, tagSignature);
-                                }
-                                children.add(bestChild);
-                                totalCost += bestChild.getCost();
+                            String key = chosenOpt.getItem().toString();
+                            if (groupedIngredients.containsKey(key)) {
+                                groupedIngredients.get(key).grow(1);
+                            } else {
+                                ItemStack copy = chosenOpt.copy();
+                                copy.setCount(1);
+                                groupedIngredients.put(key, copy);
+                                groupedOptions.put(key, items);
                             }
                         }
+                    }
+
+                    for (java.util.Map.Entry<String, ItemStack> entry : groupedIngredients.entrySet()) {
+                        ItemStack groupedTarget = entry.getValue();
+                        ItemStack[] items = groupedOptions.get(entry.getKey());
+                        
+                        groupedTarget.setCount(groupedTarget.getCount() * craftsNeeded);
+                        
+                        List<CraftingPlan.PlanNode> subNodes = buildNodesForTarget(groupedTarget, visited, false, inv);
+                        CraftingPlan.PlanNode candidate;
+                        if (!subNodes.isEmpty()) {
+                            candidate = subNodes.get(0);
+                        } else {
+                            int fallbackCost = getCostWithInventory(groupedTarget, inv);
+                            candidate = new CraftingPlan.PlanNode(groupedTarget, "Raw", false, null, groupedTarget.getCount(), new ArrayList<>(), fallbackCost, "craftanyway:raw");
+                        }
+                        
+                        if (items.length > 1) {
+                            String tagSignature = null;
+                            List<String> ids = new ArrayList<>();
+                            for (ItemStack stack : items) ids.add(stack.getItem().toString());
+                            java.util.Collections.sort(ids);
+                            tagSignature = String.join(",", ids);
+                            candidate = new CraftingPlan.PlanNode(candidate.getOutput(), candidate.getCategoryName(), candidate.isCraftingTable(), candidate.getRecipe(), candidate.getCraftsNeeded(), candidate.getChildren(), candidate.getCost(), candidate.getRecipeId(), items, tagSignature);
+                        }
+                        
+                        children.add(candidate);
+                        totalCost += candidate.getCost();
                     }
                     
                     visited.remove(itemId);

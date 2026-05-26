@@ -91,12 +91,16 @@ public class PlanScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics guiGraphics) {
+        // Draw a premium custom dark opaque background to avoid Minecraft's default blur shader and prevent ghosting
+        guiGraphics.fill(0, 0, this.width, this.height, 0xFF0A0A0A);
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        // Draw a premium custom dark semi-transparent background to avoid Minecraft's default blur shader
-        guiGraphics.fill(0, 0, this.width, this.height, 0xD00A0A0A);
         
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(panX, panY, 0);
+        guiGraphics.pose().translate(panX, panY, 50); // Translate Z by 50 to avoid any background overlap
         guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
 
         nodeHitboxes.clear();
@@ -162,18 +166,40 @@ public class PlanScreen extends Screen {
     }
 
     private void renderPopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        int width = 200;
+        int textWidth = 150;
         int rowHeight = 20;
         int headerHeight = 15;
         
         int optionsCount = popupOptions != null ? popupOptions.size() : 0;
         int variantsCount = popupVariants != null ? popupVariants.size() : 0;
         
+        int maxItems = 0;
+        if (popupOptions != null) {
+            for (RecipePlanner.RecipeOption opt : popupOptions) {
+                if (opt.previewItems != null) {
+                    maxItems = Math.max(maxItems, opt.previewItems.size());
+                }
+            }
+        }
+        if (popupVariants != null) {
+            for (RecipePlanner.RecipeOption opt : popupVariants) {
+                if (opt.previewItems != null) {
+                    maxItems = Math.max(maxItems, opt.previewItems.size());
+                }
+            }
+        }
+        
+        int width = textWidth + (maxItems * 18) + 10;
+        if (width < 200) width = 200;
+        
         int totalRows = optionsCount + variantsCount;
         int height = totalRows * rowHeight + 10;
         if (optionsCount > 0) height += headerHeight;
         if (variantsCount > 0) height += headerHeight;
         
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 400);
+
         guiGraphics.fill((int)popupX, (int)popupY, (int)popupX + width, (int)popupY + height, 0xEE0A0A0A);
         guiGraphics.renderOutline((int)popupX, (int)popupY, width, height, 0xFFAAAAAA);
         
@@ -188,8 +214,18 @@ public class PlanScreen extends Screen {
                     guiGraphics.fill((int)popupX + 1, currentY, (int)popupX + width - 1, currentY + rowHeight, 0x55FFFFFF);
                 }
                 
-                String text = opt.name + " (Cost: " + opt.cost + ")";
+                String text = opt.name;
+                if (opt.cost > 0) text += " (Cost: " + opt.cost + ")";
                 guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xFFFFAA : 0xFFFFFF);
+                
+                if (opt.previewItems != null) {
+                    int itemX = (int)popupX + textWidth;
+                    for (net.minecraft.world.item.ItemStack stack : opt.previewItems) {
+                        guiGraphics.renderItem(stack, itemX, currentY + 2);
+                        itemX += 18;
+                    }
+                }
+                
                 currentY += rowHeight;
             }
         }
@@ -205,9 +241,20 @@ public class PlanScreen extends Screen {
                 
                 String text = opt.name;
                 guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xAAFFAA : 0xFFFFFF);
+                
+                if (opt.previewItems != null) {
+                    int itemX = (int)popupX + textWidth;
+                    for (net.minecraft.world.item.ItemStack stack : opt.previewItems) {
+                        guiGraphics.renderItem(stack, itemX, currentY + 2);
+                        itemX += 18;
+                    }
+                }
+                
                 currentY += rowHeight;
             }
         }
+        
+        guiGraphics.pose().popPose();
     }
 
     private void drawNodeTree(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y) {
@@ -215,7 +262,9 @@ public class PlanScreen extends Screen {
 
         // Draw item
         guiGraphics.renderItem(node.getOutput(), x - 8, y);
-        guiGraphics.renderItemDecorations(this.font, node.getOutput(), x - 8, y);
+        // Force rendering the count even if 1 to show quantities everywhere
+        String qtyText = String.valueOf(node.getOutput().getCount());
+        guiGraphics.renderItemDecorations(this.font, node.getOutput(), x - 8, y, qtyText);
         nodeHitboxes.add(new NodeHitbox(node, x - 8, y, 16, 16));
         
         if (node.getTagOptions() != null && node.getTagOptions().length > 1) {
@@ -250,10 +299,10 @@ public class PlanScreen extends Screen {
                 int childWidth = childWidths[i];
                 int childX = currentX + (childWidth / 2);
 
-                // Draw connecting line
-                guiGraphics.fill(x, y + 16, x + 1, y + 28, 0xFFFFFFFF); // Vertical down from parent
-                guiGraphics.fill(Math.min(x, childX), y + 28, Math.max(x, childX) + 1, y + 29, 0xFFFFFFFF); // Horizontal branch
-                guiGraphics.fill(childX, y + 28, childX + 1, childY, 0xFFFFFFFF); // Vertical down to child
+                // Draw connecting line with thickness 2 to survive any zoom scaling and center properly
+                guiGraphics.fill(x, y + 16, x + 2, y + 28, 0xFFFFFFFF); // Vertical down from parent
+                guiGraphics.fill(Math.min(x, childX), y + 28, Math.max(x, childX) + 2, y + 30, 0xFFFFFFFF); // Horizontal branch
+                guiGraphics.fill(childX, y + 28, childX + 2, childY, 0xFFFFFFFF); // Vertical down to child
 
                 drawNodeTree(guiGraphics, children.get(i), childX, childY);
 
