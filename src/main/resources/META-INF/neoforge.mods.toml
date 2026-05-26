@@ -14,7 +14,7 @@ logoFile="logo.png"
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"
-    versionRange="${loader_version_range}"
+    versionRange="${neo_version_range}"
     ordering="NONE"
     side="BOTH"
 
