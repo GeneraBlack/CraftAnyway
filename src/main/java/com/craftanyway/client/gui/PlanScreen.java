@@ -254,10 +254,10 @@ public class PlanScreen extends Screen {
                 int childWidth = childWidths[i];
                 int childX = currentX + (childWidth / 2);
 
-                // Draw connecting line
-                guiGraphics.fill(x, y + 16, x + 1, y + 28, 0xFFFFFFFF); // Vertical down from parent
-                guiGraphics.fill(Math.min(x, childX), y + 28, Math.max(x, childX) + 1, y + 29, 0xFFFFFFFF); // Horizontal branch
-                guiGraphics.fill(childX, y + 28, childX + 1, childY, 0xFFFFFFFF); // Vertical down to child
+                // Draw connecting line with thickness 2 to survive zoom scaling
+                guiGraphics.fill(x, y + 16, x + 2, y + 28, 0xFFFFFFFF); // Vertical down from parent
+                guiGraphics.fill(Math.min(x, childX), y + 28, Math.max(x, childX) + 2, y + 30, 0xFFFFFFFF); // Horizontal branch
+                guiGraphics.fill(childX, y + 28, childX + 2, childY, 0xFFFFFFFF); // Vertical down to child
 
                 drawNodeTree(guiGraphics, children.get(i), childX, childY);
 

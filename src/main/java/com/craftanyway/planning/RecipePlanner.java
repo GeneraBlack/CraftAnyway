@@ -119,7 +119,9 @@ public class RecipePlanner {
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
         // Find categories that produce this item
-        var typedTargetOpt = jeiRuntime.getIngredientManager().createTypedIngredient(target);
+        ItemStack focusStack = target.copy();
+        focusStack.setCount(1);
+        var typedTargetOpt = jeiRuntime.getIngredientManager().createTypedIngredient(focusStack);
         if (typedTargetOpt.isEmpty()) return nodes;
         
         IFocus<ItemStack> focus = jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedTargetOpt.get());
