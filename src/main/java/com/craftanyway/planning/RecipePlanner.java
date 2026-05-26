@@ -13,6 +13,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.core.NonNullList;
 
 
 import java.util.ArrayList;
@@ -130,23 +131,30 @@ public class RecipePlanner {
             
             // For standard recipes, add one option per unique recipe
             for (Object recipeObj : recipes) {
-                if (recipeObj instanceof Recipe<?> recipe) {
-                    String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
-                    int ingredientCount = 0;
-                    List<ItemStack> previewItems = new ArrayList<>();
-                    for (Ingredient ing : recipe.getIngredients()) {
-                        if (!ing.isEmpty()) {
-                            ingredientCount++;
-                            ItemStack[] items = ing.getItems();
-                            if (items.length > 0) {
-                                previewItems.add(items[0]);
+                try {
+                    Recipe<?> recipe = extractRecipeFromObject(recipeObj);
+                    if (recipe != null) {
+                        String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
+                        int ingredientCount = 0;
+                        List<ItemStack> previewItems = new ArrayList<>();
+                        for (Ingredient ing : extractIngredientsFromRecipe(recipe)) {
+                            if (!ing.isEmpty()) {
+                                ingredientCount++;
+                                ItemStack[] items = ing.getItems();
+                                if (items.length > 0) {
+                                    previewItems.add(items[0]);
+                                }
                             }
                         }
+                        int cost = ingredientCount * target.getCount();
+                        options.add(new RecipeOption(recipeId, categoryName, cost, previewItems));
+                    } else {
+                        // Non-standard JEI recipe wrapper
+                        String recipeId = "jei:" + category.getRecipeType().getUid().toString();
+                        options.add(new RecipeOption(recipeId, categoryName, 0, new ArrayList<>()));
                     }
-                    int cost = ingredientCount * target.getCount();
-                    options.add(new RecipeOption(recipeId, categoryName, cost, previewItems));
-                } else {
-                    // Non-standard JEI recipe wrapper
+                } catch (Throwable t) {
+                    // Fail-safe
                     String recipeId = "jei:" + category.getRecipeType().getUid().toString();
                     options.add(new RecipeOption(recipeId, categoryName, 0, new ArrayList<>()));
                 }
@@ -218,122 +226,127 @@ public class RecipePlanner {
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
             
             for (Object recipeObj : recipes) {
-                // If it's a vanilla Recipe, we can extract ingredients
-                if (recipeObj instanceof Recipe<?> recipe) {
-                    // Check if this recipe contains any ingredient that is already in visited (circular dependency)
-                    boolean hasCycle = false;
-                    for (Ingredient ingredient : recipe.getIngredients()) {
-                        if (ingredient.isEmpty()) continue;
-                        ItemStack[] items = ingredient.getItems();
-                        if (items.length > 0) {
-                            boolean allVisited = true;
-                            for (ItemStack opt : items) {
-                                if (!visited.contains(opt.getItem().toString())) {
-                                    allVisited = false;
+                try {
+                    Recipe<?> recipe = extractRecipeFromObject(recipeObj);
+                    if (recipe != null) {
+                        // Check if this recipe contains any ingredient that is already in visited (circular dependency)
+                        boolean hasCycle = false;
+                        List<Ingredient> ingredients = extractIngredientsFromRecipe(recipe);
+                        for (Ingredient ingredient : ingredients) {
+                            if (ingredient.isEmpty()) continue;
+                            ItemStack[] items = ingredient.getItems();
+                            if (items.length > 0) {
+                                boolean allVisited = true;
+                                for (ItemStack opt : items) {
+                                    if (!visited.contains(opt.getItem().toString())) {
+                                        allVisited = false;
+                                        break;
+                                    }
+                                }
+                                if (allVisited) {
+                                    hasCycle = true;
                                     break;
                                 }
                             }
-                            if (allVisited) {
-                                hasCycle = true;
-                                break;
+                        }
+                        if (hasCycle) {
+                            continue; // Skip this recipe to prevent circular loops
+                        }
+                        
+                        visited.add(itemId);
+                        
+                        List<CraftingPlan.PlanNode> children = new ArrayList<>();
+                        boolean isCrafting = category.getRecipeType().getUid().getPath().equals("crafting");
+                        
+                        int requestedAmount = target.getCount();
+                        int recipeYield = 1;
+                        Minecraft mc = Minecraft.getInstance();
+                        if (mc.level != null) {
+                            ItemStack result = extractResultFromRecipe(recipe, mc.level.registryAccess());
+                            if (!result.isEmpty()) recipeYield = result.getCount();
+                        }
+                        int craftsNeeded = (int) Math.ceil((double) requestedAmount / recipeYield);
+                        
+                        int totalCost = craftsNeeded; // 1 cost per craft operation
+                        
+                        java.util.Map<String, ItemStack> groupedIngredients = new java.util.HashMap<>();
+                        java.util.Map<String, ItemStack[]> groupedOptions = new java.util.HashMap<>();
+
+                        for (Ingredient ingredient : ingredients) {
+                            if (ingredient.isEmpty()) continue;
+                            
+                            ItemStack[] items = ingredient.getItems();
+                            if (items.length > 0) {
+                                String tagSignature = null;
+                                if (items.length > 1) {
+                                    List<String> ids = new ArrayList<>();
+                                    for (ItemStack stack : items) ids.add(stack.getItem().toString());
+                                    java.util.Collections.sort(ids);
+                                    tagSignature = String.join(",", ids);
+                                }
+                                
+                                String preferredVariant = tagSignature != null ? tagPreferences.get(tagSignature) : null;
+                                
+                                ItemStack chosenOpt = items[0];
+                                for (ItemStack opt : items) {
+                                    if (preferredVariant != null && opt.getItem().toString().equals(preferredVariant)) {
+                                        chosenOpt = opt;
+                                        break;
+                                    }
+                                }
+                                
+                                String key = chosenOpt.getItem().toString();
+                                if (groupedIngredients.containsKey(key)) {
+                                    groupedIngredients.get(key).grow(1);
+                                } else {
+                                    ItemStack copy = chosenOpt.copy();
+                                    copy.setCount(1);
+                                    groupedIngredients.put(key, copy);
+                                    groupedOptions.put(key, items);
+                                }
                             }
                         }
-                    }
-                    if (hasCycle) {
-                        continue; // Skip this recipe to prevent circular loops
-                    }
-                    
-                    visited.add(itemId);
-                    
-                    List<CraftingPlan.PlanNode> children = new ArrayList<>();
-                    boolean isCrafting = category.getRecipeType().getUid().getPath().equals("crafting");
-                    
-                    int requestedAmount = target.getCount();
-                    int recipeYield = 1;
-                    Minecraft mc = Minecraft.getInstance();
-                    if (mc.level != null) {
-                        try {
-                            ItemStack result = recipe.getResultItem(mc.level.registryAccess());
-                            if (!result.isEmpty()) recipeYield = result.getCount();
-                        } catch (Exception e) {
-                            // fallback
-                        }
-                    }
-                    int craftsNeeded = (int) Math.ceil((double) requestedAmount / recipeYield);
-                    
-                    int totalCost = craftsNeeded; // 1 cost per craft operation
-                    
-                    java.util.Map<String, ItemStack> groupedIngredients = new java.util.HashMap<>();
-                    java.util.Map<String, ItemStack[]> groupedOptions = new java.util.HashMap<>();
 
-                    for (Ingredient ingredient : recipe.getIngredients()) {
-                        if (ingredient.isEmpty()) continue;
-                        
-                        ItemStack[] items = ingredient.getItems();
-                        if (items.length > 0) {
-                            String tagSignature = null;
+                        for (java.util.Map.Entry<String, ItemStack> entry : groupedIngredients.entrySet()) {
+                            ItemStack groupedTarget = entry.getValue();
+                            ItemStack[] items = groupedOptions.get(entry.getKey());
+                            
+                            groupedTarget.setCount(groupedTarget.getCount() * craftsNeeded);
+                            
+                            List<CraftingPlan.PlanNode> subNodes = buildNodesForTarget(groupedTarget, visited, false, inv);
+                            CraftingPlan.PlanNode candidate;
+                            if (!subNodes.isEmpty()) {
+                                candidate = subNodes.get(0);
+                            } else {
+                                int fallbackCost = getCostWithInventory(groupedTarget, inv);
+                                candidate = new CraftingPlan.PlanNode(groupedTarget, "Raw", false, null, groupedTarget.getCount(), new ArrayList<>(), fallbackCost, "craftanyway:raw");
+                            }
+                            
                             if (items.length > 1) {
+                                String tagSignature = null;
                                 List<String> ids = new ArrayList<>();
                                 for (ItemStack stack : items) ids.add(stack.getItem().toString());
                                 java.util.Collections.sort(ids);
                                 tagSignature = String.join(",", ids);
+                                candidate = new CraftingPlan.PlanNode(candidate.getOutput(), candidate.getCategoryName(), candidate.isCraftingTable(), candidate.getRecipe(), candidate.getCraftsNeeded(), candidate.getChildren(), candidate.getCost(), candidate.getRecipeId(), items, tagSignature);
                             }
                             
-                            String preferredVariant = tagSignature != null ? tagPreferences.get(tagSignature) : null;
-                            
-                            ItemStack chosenOpt = items[0];
-                            for (ItemStack opt : items) {
-                                if (preferredVariant != null && opt.getItem().toString().equals(preferredVariant)) {
-                                    chosenOpt = opt;
-                                    break;
-                                }
-                            }
-                            
-                            String key = chosenOpt.getItem().toString();
-                            if (groupedIngredients.containsKey(key)) {
-                                groupedIngredients.get(key).grow(1);
-                            } else {
-                                ItemStack copy = chosenOpt.copy();
-                                copy.setCount(1);
-                                groupedIngredients.put(key, copy);
-                                groupedOptions.put(key, items);
-                            }
+                            children.add(candidate);
+                            totalCost += candidate.getCost();
                         }
+                        
+                        visited.remove(itemId);
+                        String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
+                        nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), isCrafting, recipe, craftsNeeded, children, totalCost, recipeId));
+                    } else {
+                        // Non-standard recipe (e.g. JEI custom wrapper), treat as leaf with category name
+                        int craftsNeeded = target.getCount();
+                        int fallbackCost = getCostWithInventory(target, inv);
+                        String recipeId = "jei:" + category.getRecipeType().getUid().toString();
+                        nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), false, null, craftsNeeded, new ArrayList<>(), fallbackCost, recipeId));
                     }
-
-                    for (java.util.Map.Entry<String, ItemStack> entry : groupedIngredients.entrySet()) {
-                        ItemStack groupedTarget = entry.getValue();
-                        ItemStack[] items = groupedOptions.get(entry.getKey());
-                        
-                        groupedTarget.setCount(groupedTarget.getCount() * craftsNeeded);
-                        
-                        List<CraftingPlan.PlanNode> subNodes = buildNodesForTarget(groupedTarget, visited, false, inv);
-                        CraftingPlan.PlanNode candidate;
-                        if (!subNodes.isEmpty()) {
-                            candidate = subNodes.get(0);
-                        } else {
-                            int fallbackCost = getCostWithInventory(groupedTarget, inv);
-                            candidate = new CraftingPlan.PlanNode(groupedTarget, "Raw", false, null, groupedTarget.getCount(), new ArrayList<>(), fallbackCost, "craftanyway:raw");
-                        }
-                        
-                        if (items.length > 1) {
-                            String tagSignature = null;
-                            List<String> ids = new ArrayList<>();
-                            for (ItemStack stack : items) ids.add(stack.getItem().toString());
-                            java.util.Collections.sort(ids);
-                            tagSignature = String.join(",", ids);
-                            candidate = new CraftingPlan.PlanNode(candidate.getOutput(), candidate.getCategoryName(), candidate.isCraftingTable(), candidate.getRecipe(), candidate.getCraftsNeeded(), candidate.getChildren(), candidate.getCost(), candidate.getRecipeId(), items, tagSignature);
-                        }
-                        
-                        children.add(candidate);
-                        totalCost += candidate.getCost();
-                    }
-                    
-                    visited.remove(itemId);
-                    String recipeId = recipe.getId() != null ? recipe.getId().toString() : "unknown";
-                    nodes.add(new CraftingPlan.PlanNode(target, category.getTitle().getString(), isCrafting, recipe, craftsNeeded, children, totalCost, recipeId));
-                } else {
-                    // Non-standard recipe (e.g. JEI custom wrapper), treat as leaf with category name
+                } catch (Throwable t) {
+                    // Fail-safe: if reflection or modded extraction throws ANY error, fall back to simple category node
                     int craftsNeeded = target.getCount();
                     int fallbackCost = getCostWithInventory(target, inv);
                     String recipeId = "jei:" + category.getRecipeType().getUid().toString();
@@ -405,5 +418,155 @@ public class RecipePlanner {
             }
         }
         return count;
+    }
+
+    private static Recipe<?> extractRecipeFromObject(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof Recipe<?> r) return r;
+        
+        try {
+            // Scan fields of obj
+            Class<?> clazz = obj.getClass();
+            while (clazz != null && clazz != Object.class) {
+                String name = clazz.getName();
+                if (name.startsWith("java.") || name.startsWith("javax.") || name.startsWith("net.minecraft.") || name.startsWith("mezz.jei.")) {
+                    break;
+                }
+                for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                    try {
+                        field.setAccessible(true);
+                        Object value = field.get(obj);
+                        if (value instanceof Recipe<?> r) {
+                            return r;
+                        }
+                    } catch (Throwable t) {
+                        // Ignore
+                    }
+                }
+                clazz = clazz.getSuperclass();
+            }
+        } catch (Throwable t) {
+            // Ignore
+        }
+        return null;
+    }
+
+    private static List<Ingredient> extractIngredientsFromRecipe(Recipe<?> recipe) {
+        try {
+            NonNullList<Ingredient> standard = recipe.getIngredients();
+            if (standard != null && !standard.isEmpty()) {
+                return standard;
+            }
+        } catch (Throwable t) {
+            // Ignore standard extraction errors
+        }
+        
+        // Reflection fallback for custom modded recipes (like OritechRecipe)
+        List<Ingredient> extracted = new ArrayList<>();
+        try {
+            Class<?> clazz = recipe.getClass();
+            while (clazz != null && clazz != Object.class) {
+                String name = clazz.getName();
+                if (name.startsWith("java.") || name.startsWith("javax.") || name.startsWith("net.minecraft.") || name.startsWith("mezz.jei.")) {
+                    break;
+                }
+                for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                    try {
+                        field.setAccessible(true);
+                        Object value = field.get(recipe);
+                        if (value == null) continue;
+                        
+                        if (value instanceof List<?> list) {
+                            for (Object element : list) {
+                                if (element instanceof Ingredient ing) {
+                                    extracted.add(ing);
+                                } else if (element instanceof ItemStack stack) {
+                                    if (!stack.isEmpty()) {
+                                        extracted.add(Ingredient.of(stack));
+                                    }
+                                }
+                            }
+                            if (!extracted.isEmpty()) return extracted;
+                        } else if (value instanceof Ingredient[] arr) {
+                            for (Ingredient ing : arr) {
+                                if (ing != null && !ing.isEmpty()) {
+                                    extracted.add(ing);
+                                }
+                            }
+                            if (!extracted.isEmpty()) return extracted;
+                        } else if (value instanceof ItemStack[] arr) {
+                            for (ItemStack stack : arr) {
+                                if (stack != null && !stack.isEmpty()) {
+                                    extracted.add(Ingredient.of(stack));
+                                }
+                            }
+                            if (!extracted.isEmpty()) return extracted;
+                        }
+                    } catch (Throwable t) {
+                        // Ignore
+                    }
+                }
+                clazz = clazz.getSuperclass();
+            }
+        } catch (Throwable t) {
+            // Ignore
+        }
+        return extracted;
+    }
+
+    private static ItemStack extractResultFromRecipe(Recipe<?> recipe, net.minecraft.core.RegistryAccess registryAccess) {
+        try {
+            ItemStack standard = recipe.getResultItem(registryAccess);
+            if (standard != null && !standard.isEmpty()) {
+                return standard;
+            }
+        } catch (Throwable t) {
+            // Ignore standard extraction errors
+        }
+        
+        // Reflection fallback for custom modded recipes (like OritechRecipe)
+        try {
+            Class<?> clazz = recipe.getClass();
+            while (clazz != null && clazz != Object.class) {
+                String name = clazz.getName();
+                if (name.startsWith("java.") || name.startsWith("javax.") || name.startsWith("net.minecraft.") || name.startsWith("mezz.jei.")) {
+                    break;
+                }
+                for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                    try {
+                        field.setAccessible(true);
+                        Object value = field.get(recipe);
+                        if (value == null) continue;
+                        
+                        if (value instanceof List<?> list) {
+                            for (Object element : list) {
+                                if (element instanceof ItemStack stack) {
+                                    if (!stack.isEmpty()) {
+                                        return stack;
+                                    }
+                                }
+                            }
+                        } else if (value instanceof ItemStack stack) {
+                            if (!stack.isEmpty()) {
+                                return stack;
+                            }
+                        } else if (value instanceof ItemStack[] arr) {
+                            for (ItemStack stack : arr) {
+                                if (stack != null && !stack.isEmpty()) {
+                                    return stack;
+                                }
+                            }
+                        }
+                    } catch (Throwable t) {
+                        // Ignore
+                    }
+                }
+                clazz = clazz.getSuperclass();
+            }
+        } catch (Throwable t) {
+            // Ignore
+        }
+        
+        return ItemStack.EMPTY;
     }
 }
