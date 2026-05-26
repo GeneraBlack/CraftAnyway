@@ -124,7 +124,7 @@ public class RecipePlanner {
         if (typedTargetOpt.isEmpty()) return nodes;
         
         IFocus<ItemStack> focus = jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedTargetOpt.get());
-        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList();
+        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().get().toList();
         
         for (IRecipeCategory<?> category : categories) {
             if (category.getRecipeType().getUid().getPath().equals("information")) {
@@ -134,7 +134,8 @@ public class RecipePlanner {
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList();
             
             // Fallback if JEI focus filter hid recipes (strict component matching issue in 1.21.1)
-            if (recipes.isEmpty() && (category.getRecipeType().getUid().getPath().equals("crafting") || category.getRecipeType().getUid().getPath().equals("smelting"))) {
+            String catPath = category.getRecipeType().getUid().getPath();
+            if (recipes.isEmpty() && (catPath.equals("crafting") || catPath.equals("smelting") || catPath.equals("blasting") || catPath.equals("smoking") || catPath.equals("campfire_cooking"))) {
                 List<?> allRecipes = recipeManager.createRecipeLookup(category.getRecipeType()).get().toList();
                 List<Object> matching = new ArrayList<>();
                 for (Object obj : allRecipes) {
