@@ -29,10 +29,12 @@ Tired of manually clicking through complex recipes, calculating raw materials in
 - When a recipe accepts "any" item from a tag (e.g. Any Planks), the planner recursively scans all possibilities.
 - It dynamically subtracts costs based on your **actual inventory**, automatically selecting the variant you already have the raw materials for (e.g. choosing Spruce Planks over Oak Planks because you have Spruce Logs).
 
-### 🎯 Interactive Variant Picker
+### 🎯 Interactive Variant & Recipe Picker
+- The visual tree dynamically discovers **all** JEI-registered methods of obtaining an item (including Crafting, Smelting, Blasting, and Modded mechanics).
 - "Any" tag items chosen by the planner are indicated with a yellow `*` in the visual tree.
-- Click on the node to open the **Variant Picker Menu**, allowing you to manually override the planner's choice (e.g. forcing Oak Planks).
-- The planner instantly recalculates the entire tech tree and saves your variant preference!
+- Click on any node to open the **Alternative Recipes Menu** (formerly the Variant Picker Menu).
+- The menu features **Visual Ingredient Previews**, rendering the exact input items required for each alternative directly in the popup, making it effortless to choose your preferred processing method!
+- The planner instantly recalculates the entire tech tree and saves your variant and recipe preferences!
 
 ### 🛒 Persistent HUD & Chest Shopping List
 - Displays your Crafting Steps on your main HUD.
