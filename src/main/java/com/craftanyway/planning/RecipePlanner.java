@@ -118,13 +118,21 @@ public class RecipePlanner {
 
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
-        // Find categories that produce this item. Strip all data components by creating a fresh ItemStack
-        ItemStack focusStack = new ItemStack(target.getItem());
-        var typedTargetOpt = jeiRuntime.getIngredientManager().createTypedIngredient(focusStack);
+        // Normalize the item stack to match JEI's registered ingredient EXACTLY
+        var ingredientManager = jeiRuntime.getIngredientManager();
+        ItemStack focusStack = new ItemStack(target.getItem()); // default if not found
+        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
+            if (stack.getItem() == target.getItem()) {
+                focusStack = stack.copy();
+                break;
+            }
+        }
+        
+        var typedTargetOpt = ingredientManager.createTypedIngredient(focusStack);
         if (typedTargetOpt.isEmpty()) return nodes;
         
         IFocus<ItemStack> focus = jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedTargetOpt.get());
-        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().get().toList();
+        List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(List.of(focus)).get().toList();
         
         for (IRecipeCategory<?> category : categories) {
             if (category.getRecipeType().getUid().getPath().equals("information")) {
@@ -132,27 +140,6 @@ public class RecipePlanner {
             }
 
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(List.of(focus)).get().toList();
-            
-            // Fallback if JEI focus filter hid recipes (strict component matching issue in 1.21.1)
-            String catPath = category.getRecipeType().getUid().getPath();
-            if (recipes.isEmpty() && (catPath.equals("crafting") || catPath.equals("smelting") || catPath.equals("blasting") || catPath.equals("smoking") || catPath.equals("campfire_cooking"))) {
-                List<?> allRecipes = recipeManager.createRecipeLookup(category.getRecipeType()).get().toList();
-                List<Object> matching = new ArrayList<>();
-                for (Object obj : allRecipes) {
-                    if (obj instanceof RecipeHolder<?> holder) {
-                        Minecraft mc = Minecraft.getInstance();
-                        if (mc.level != null) {
-                            try {
-                                ItemStack result = holder.value().getResultItem(mc.level.registryAccess());
-                                if (!result.isEmpty() && result.getItem() == target.getItem()) {
-                                    matching.add(obj);
-                                }
-                            } catch (Exception ignored) {}
-                        }
-                    }
-                }
-                recipes = matching;
-            }
             
             for (Object recipeObj : recipes) {
                 // If it's a vanilla RecipeHolder, we can extract ingredients
