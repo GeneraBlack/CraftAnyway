@@ -224,7 +224,11 @@ public class RecipePlanner {
                     String recipeId = (recipe != null && recipe.getId() != null) ? recipe.getId().toString() : ("jei:" + category.getRecipeType().getUid().toString());
                     
                     if (!isRoot) {
-                        if (pref != null && !recipeId.equals(pref)) continue;
+                        if (pref != null && !recipeId.equals(pref)) {
+                            int fallbackCost = getCostWithInventory(target, inv);
+                            nodes.add(new CraftingPlan.PlanNode(target, "MISMATCH: " + recipeId + " != " + pref, false, null, target.getCount(), new ArrayList<>(), fallbackCost, recipeId));
+                            continue;
+                        }
                         if (pref == null && !nodes.isEmpty()) break; // Already got a default recipe
                     }
                     List<Ingredient> ingredients = extractIngredientsFromObject(recipeObj);
