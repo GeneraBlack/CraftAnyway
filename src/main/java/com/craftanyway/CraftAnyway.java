@@ -1,18 +1,15 @@
 package com.craftanyway;
 
 import com.craftanyway.client.Keybinds;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod(CraftAnyway.MODID)
 public class CraftAnyway {
     public static final String MODID = "craftanyway";
 
-    public CraftAnyway() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-        
+    public CraftAnyway(IEventBus modEventBus) {
         // Register client setup event
         modEventBus.addListener(this::onClientSetup);
         

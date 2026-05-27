@@ -81,14 +81,14 @@ public class PlanScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics) {
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Dark grey background as requested in mockup
         guiGraphics.fill(0, 0, this.width, this.height, 0xFF2B2B2B);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics);
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         
         // Split screen: 25% sidebar, 75% pathbuilder
         int sidebarWidth = Math.max(200, this.width / 4);
@@ -142,7 +142,7 @@ public class PlanScreen extends Screen {
                 for (CraftingPlan.StepItem stepItem : step.items.values()) {
                     ITypedIngredient<?> stack = stepItem.ingredient;
                     renderIngredient(guiGraphics, stack, rx, ry);
-                    renderIngredientDecorations(guiGraphics, stack, rx, ry, stepItem.have + "/" + stepItem.needed);
+                    renderIngredientDecorations(guiGraphics, stack, rx, ry, "");
                     
                     String text = stepItem.have + "/" + stepItem.needed;
                     guiGraphics.pose().pushPose();
@@ -150,10 +150,10 @@ public class PlanScreen extends Screen {
                     guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
                     guiGraphics.pose().popPose();
                     
-                    rx += 25;
-                    if (rx > sidebarWidth - 30) {
+                    rx += 40;
+                    if (rx > sidebarWidth - 40) {
                         rx = 10;
-                        ry += 25;
+                        ry += 35;
                     }
                 }
                 ry += 25;
@@ -214,18 +214,10 @@ public class PlanScreen extends Screen {
         renderIngredient(guiGraphics, node.getOutput(), x - 8, y + 12);
         renderIngredientDecorations(guiGraphics, node.getOutput(), x - 8, y + 12, String.valueOf(node.getAmount()));
         
-        // Draw Dropdowns
-        int catWidth = 100;
-        int recWidth = 100;
-        int dropY = y + 32;
-        int catX = x - catWidth - 2;
-        int recX = x + 2;
-        
         // Category Dropdown Box
-        guiGraphics.fill(catX, dropY, catX + catWidth, dropY + 12, 0xFF555555);
-        guiGraphics.drawString(this.font, truncate(node.getCategoryName(), 20), catX + 2, dropY + 2, 0xFFFFFF);
+        int catTextWidth = this.font.width(node.getCategoryName());
+        int catWidth = Math.max(100, catTextWidth + 10);
         
-        // Recipe Dropdown Box
         String recName = "Recipe";
         if (node.getRecipeId() != null && node.getRecipeId().contains(":")) {
             String[] parts = node.getRecipeId().split(":");
@@ -234,8 +226,24 @@ public class PlanScreen extends Screen {
         if (node.getCategoryName().equals("Raw") || node.getCategoryName().equals("Select Category...")) {
             recName = node.getCategoryName();
         }
+        int recTextWidth = this.font.width(recName);
+        int recWidth = Math.max(100, recTextWidth + 10);
+
+        int dropY = y + 32;
+        int catX = x - catWidth - 2;
+        int recX = x + 2;
+        
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 5); // Ensure boxes render above background
+        guiGraphics.fill(catX, dropY, catX + catWidth, dropY + 12, 0xFF555555);
         guiGraphics.fill(recX, dropY, recX + recWidth, dropY + 12, 0xFF555555);
-        guiGraphics.drawString(this.font, truncate(recName, 20), recX + 2, dropY + 2, 0xFFFFFF);
+        guiGraphics.pose().popPose();
+
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 6); // Ensure text renders above boxes
+        guiGraphics.drawString(this.font, node.getCategoryName(), catX + 5, dropY + 2, 0xFFFFFF);
+        guiGraphics.drawString(this.font, recName, recX + 5, dropY + 2, 0xFFFFFF);
+        guiGraphics.pose().popPose();
         
         int nextY = dropY + 16;
         
@@ -245,14 +253,24 @@ public class PlanScreen extends Screen {
             int drawX = x - (drawable.getRect().getWidth() / 2);
             drawable.setPosition(drawX, nextY);
             
+            // Draw a grey background panel for the JEI recipe since JEI 1.21 doesn't draw it automatically
+            guiGraphics.fill(drawX - 5, nextY - 5, drawX + drawable.getRect().getWidth() + 5, nextY + drawable.getRect().getHeight() + 5, 0xFFC6C6C6);
+            
+            // Draw a dark border
+            guiGraphics.renderOutline(drawX - 5, nextY - 5, drawable.getRect().getWidth() + 10, drawable.getRect().getHeight() + 10, 0xFF555555);
+            
             // Adjust mouse coordinates to match zoom/pan for JEI internal checks
             int localMouseX = (int)((mouseX - panX) / zoom);
             int localMouseY = (int)((mouseY - panY) / zoom);
             
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 10);
             drawable.drawRecipe(guiGraphics, localMouseX, localMouseY);
-            nextY += drawable.getRect().getHeight() + 10;
+            guiGraphics.pose().popPose();
+            
+            nextY += drawable.getRect().getHeight() + 15;
         } else {
-            nextY += 10; // Spacing if no recipe
+            nextY += 15; // Spacing if no recipe
         }
 
         if (!node.isLeaf()) {
@@ -275,9 +293,12 @@ public class PlanScreen extends Screen {
 
                 // Orthogonal lines
                 int midY = nextY + 15;
-                guiGraphics.fill(x, nextY, x + 2, midY, 0xFFFFFFFF);
-                guiGraphics.fill(Math.min(x, childX), midY, Math.max(x, childX) + 2, midY + 2, 0xFFFFFFFF);
-                guiGraphics.fill(childX, midY, childX + 2, childY, 0xFFFFFFFF);
+                guiGraphics.pose().pushPose();
+                guiGraphics.pose().translate(0, 0, 5); // ensure lines are above background
+                guiGraphics.fill(x, nextY, x + 2, midY, 0xFF555555);
+                guiGraphics.fill(Math.min(x, childX), midY, Math.max(x, childX) + 2, midY + 2, 0xFF555555);
+                guiGraphics.fill(childX, midY, childX + 2, childY, 0xFF555555);
+                guiGraphics.pose().popPose();
 
                 drawNodeTree(guiGraphics, children.get(i), childX, childY, mouseX, mouseY);
 
@@ -333,7 +354,22 @@ public class PlanScreen extends Screen {
     private int calculateSubtreeWidth(CraftingPlan.PlanNode node) {
         if (node == null) return 0;
         
-        int myWidth = 240; // Minimum width for a node (to fit name, dropdowns, JEI rect)
+        int catTextWidth = this.font.width(node.getCategoryName());
+        int catWidth = Math.max(100, catTextWidth + 10);
+        
+        String recName = "Recipe";
+        if (node.getRecipeId() != null && node.getRecipeId().contains(":")) {
+            String[] parts = node.getRecipeId().split(":");
+            recName = parts[parts.length - 1];
+        }
+        if (node.getCategoryName().equals("Raw") || node.getCategoryName().equals("Select Category...")) {
+            recName = node.getCategoryName();
+        }
+        int recTextWidth = this.font.width(recName);
+        int recWidth = Math.max(100, recTextWidth + 10);
+        
+        int myWidth = Math.max(240, catWidth + recWidth + 10);
+        
         IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
         if (drawable != null) {
             myWidth = Math.max(myWidth, drawable.getRect().getWidth() + 20);
@@ -354,7 +390,7 @@ public class PlanScreen extends Screen {
             // Check if clicked inside dropdown
             int rowHeight = 15;
             int dropH = currentDropdownOptions.size() * rowHeight;
-            if (mouseX >= dropdownX && mouseX <= dropdownX + 160 && mouseY >= dropdownY && mouseY <= dropdownY + dropH) {
+            if (mouseX >= dropdownX && mouseX <= dropdownX + 250 && mouseY >= dropdownY && mouseY <= dropdownY + dropH) {
                 int index = (int)((mouseY - dropdownY) / rowHeight);
                 if (index >= 0 && index < currentDropdownOptions.size()) {
                     RecipePlanner.RecipeOption opt = currentDropdownOptions.get(index);
@@ -390,8 +426,20 @@ public class PlanScreen extends Screen {
     private boolean checkNodeClicks(CraftingPlan.PlanNode node, int x, int y, double worldX, double worldY) {
         if (node == null) return false;
         
-        int catWidth = 80;
-        int recWidth = 80;
+        int catTextWidth = this.font.width(node.getCategoryName());
+        int catWidth = Math.max(100, catTextWidth + 10);
+        
+        String recName = "Recipe";
+        if (node.getRecipeId() != null && node.getRecipeId().contains(":")) {
+            String[] parts = node.getRecipeId().split(":");
+            recName = parts[parts.length - 1];
+        }
+        if (node.getCategoryName().equals("Raw") || node.getCategoryName().equals("Select Category...")) {
+            recName = node.getCategoryName();
+        }
+        int recTextWidth = this.font.width(recName);
+        int recWidth = Math.max(100, recTextWidth + 10);
+        
         int dropY = y + 32;
         int catX = x - catWidth - 2;
         int recX = x + 2;
@@ -412,10 +460,9 @@ public class PlanScreen extends Screen {
         IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
         int nextY = dropY + 16;
         if (drawable != null) {
-            // We could pass clicks to JEI here, but simple planning is enough for now.
-            nextY += drawable.getRect().getHeight() + 10;
+            nextY += drawable.getRect().getHeight() + 15;
         } else {
-            nextY += 10;
+            nextY += 15;
         }
         
         if (!node.isLeaf()) {
@@ -470,7 +517,7 @@ public class PlanScreen extends Screen {
     
     private void renderDropdown(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         int rowHeight = 15;
-        int width = 200;
+        int width = 250;
         int height = currentDropdownOptions.size() * rowHeight;
         
         guiGraphics.pose().pushPose();
@@ -519,7 +566,7 @@ public class PlanScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (scrollY > 0) {
             zoom *= 1.1;
         } else if (scrollY < 0) {
@@ -541,10 +588,7 @@ public class PlanScreen extends Screen {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(x, y, 0);
-            renderer.render(guiGraphics, typedIng.getIngredient());
-            guiGraphics.pose().popPose();
+            renderer.render(guiGraphics, typedIng.getIngredient(), x, y);
         }
     }
 

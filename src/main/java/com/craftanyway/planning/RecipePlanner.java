@@ -59,7 +59,7 @@ public class RecipePlanner {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientHelper<T> helper = jeiRuntime.getIngredientManager().getIngredientHelper(typedIng.getType());
-            return helper.getUniqueId(typedIng.getIngredient(), UidContext.Ingredient);
+            return helper.getUniqueId(typedIng.getIngredient(), mezz.jei.api.ingredients.subtypes.UidContext.Ingredient);
         }
         return "";
     }
@@ -122,8 +122,8 @@ public class RecipePlanner {
             for (Object recipeObj : recipes) {
                 try {
                     String recipeId = category.getRecipeType().getUid().toString();
-                    if (recipeObj instanceof Recipe<?> r) {
-                        recipeId = r.getId().toString();
+                    if (recipeObj instanceof net.minecraft.world.item.crafting.RecipeHolder<?> r) {
+                        recipeId = r.id().toString();
                     }
                     
                     int ingredientCount = 0;
@@ -190,9 +190,9 @@ public class RecipePlanner {
             for (Object recipeObj : recipes) {
                 String recipeId = category.getRecipeType().getUid().toString();
                 Recipe<?> recipe = null;
-                if (recipeObj instanceof Recipe<?> r) {
-                    recipe = r;
-                    recipeId = r.getId().toString();
+                if (recipeObj instanceof net.minecraft.world.item.crafting.RecipeHolder<?> r) {
+                    recipe = r.value();
+                    recipeId = r.id().toString();
                 }
 
                 if (pref != null && !pref.equals(recipeId)) {
