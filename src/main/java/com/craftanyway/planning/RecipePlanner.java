@@ -31,20 +31,6 @@ public class RecipePlanner {
     private static List<CraftingPlan> alternativePlans = new ArrayList<>();
     public static Map<String, String> userPreferences = new java.util.HashMap<>();
     public static Map<String, String> tagPreferences = new java.util.HashMap<>();
-    private static Map<Item, List<ItemStack>> ingredientCache = null;
-
-    public static void clearCache() {
-        ingredientCache = null;
-    }
-
-    private static void ensureCache(mezz.jei.api.runtime.IIngredientManager manager) {
-        if (ingredientCache == null) {
-            ingredientCache = new java.util.HashMap<>();
-            for (ItemStack stack : manager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
-                ingredientCache.computeIfAbsent(stack.getItem(), k -> new ArrayList<>()).add(stack);
-            }
-        }
-    }
 
     public static class RecipeOption {
         public final String recipeId;
@@ -68,7 +54,6 @@ public class RecipePlanner {
         Inventory inv = mc.player != null ? mc.player.getInventory() : null;
         
         if (jeiRuntime != null) {
-            ensureCache(jeiRuntime.getIngredientManager());
             // Find ALL recipes for the root item across all JEI categories
             List<CraftingPlan.PlanNode> rootNodes = buildNodesForTarget(target, new HashSet<>(), true, inv);
             
@@ -116,22 +101,18 @@ public class RecipePlanner {
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         var ingredientManager = jeiRuntime.getIngredientManager();
         
-        // Build focuses for this item (same normalization as buildNodesForTarget)
+        // Build focuses for this item using the exact stack and generic fallback
         List<IFocus<ItemStack>> focuses = new ArrayList<>();
-        ensureCache(ingredientManager);
-        List<ItemStack> variants = ingredientCache.get(target.getItem());
-        if (variants != null) {
-            for (ItemStack stack : variants) {
-                var typedOpt = ingredientManager.createTypedIngredient(stack);
-                if (typedOpt.isPresent()) {
-                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
-                }
-            }
+        var typedOpt = ingredientManager.createTypedIngredient(target);
+        if (typedOpt.isPresent()) {
+            focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
         }
-        if (focuses.isEmpty()) {
-            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
-            if (typedOpt.isPresent()) {
-                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+        
+        ItemStack defaultStack = target.getItem().getDefaultInstance();
+        if (!ItemStack.isSameItemSameComponents(target, defaultStack)) {
+            var defaultOpt = ingredientManager.createTypedIngredient(defaultStack);
+            if (defaultOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, defaultOpt.get()));
             }
         }
         if (focuses.isEmpty()) return options;
@@ -213,28 +194,23 @@ public class RecipePlanner {
         
         // Normalize the item stack to match JEI's registered ingredient EXACTLY
         // Collect ALL variants of the item (some mods/recipes might output variants with different data components)
+        // Build focuses for this item using the exact stack and generic fallback
         var ingredientManager = jeiRuntime.getIngredientManager();
         List<IFocus<ItemStack>> focuses = new ArrayList<>();
+        var typedOpt = ingredientManager.createTypedIngredient(target);
+        if (typedOpt.isPresent()) {
+            focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+        }
         
-        ensureCache(ingredientManager);
-        List<ItemStack> variants = ingredientCache.get(target.getItem());
-        if (variants != null) {
-            for (ItemStack stack : variants) {
-                var typedOpt = ingredientManager.createTypedIngredient(stack);
-                if (typedOpt.isPresent()) {
-                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
-                }
+        ItemStack defaultStack = target.getItem().getDefaultInstance();
+        if (!ItemStack.isSameItemSameComponents(target, defaultStack)) {
+            var defaultOpt = ingredientManager.createTypedIngredient(defaultStack);
+            if (defaultOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, defaultOpt.get()));
             }
         }
         
         // Default fallback if JEI index doesn't have it
-        if (focuses.isEmpty()) {
-            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
-            if (typedOpt.isPresent()) {
-                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
-            }
-        }
-        
         if (focuses.isEmpty()) return nodes;
         
         // Pass all focuses at once - JEI handles OR-logic internally
