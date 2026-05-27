@@ -190,8 +190,6 @@ public class RecipePlanner {
         if (jeiRuntime == null) return nodes;
 
         int rawCost = getCostWithInventory(target, inv);
-        CraftingPlan.PlanNode rawNode = new CraftingPlan.PlanNode(target, "Raw", false, null, target.getCount(), new ArrayList<>(), rawCost, "craftanyway:raw");
-        nodes.add(rawNode);
 
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
@@ -384,18 +382,16 @@ public class RecipePlanner {
             }
         }
         
-        if (!isRoot && !nodes.isEmpty()) {
-            CraftingPlan.PlanNode chosen = nodes.get(0);
+        if (nodes.isEmpty()) {
+            nodes.add(new CraftingPlan.PlanNode(target, "Raw", false, null, target.getCount(), new ArrayList<>(), rawCost, "craftanyway:raw"));
+        } else if (!isRoot) {
+            CraftingPlan.PlanNode chosen = nodes.get(nodes.size() - 1);
             nodes.clear();
             nodes.add(chosen);
         } else if (isRoot && nodes.size() > 1) {
             nodes.sort((a, b) -> Integer.compare(a.getCost(), b.getCost()));
             List<CraftingPlan.PlanNode> filtered = new ArrayList<>();
             for (CraftingPlan.PlanNode n : nodes) {
-                if (n == rawNode && nodes.size() > 1 && n.getCost() > nodes.get(0).getCost()) {
-                    continue; // Hide the useless raw alternative if a better crafting path exists
-                }
-                
                 // Avoid adding exact duplicate structures (e.g. two identical recipes from different categories)
                 boolean isDuplicate = false;
                 for (CraftingPlan.PlanNode existing : filtered) {
