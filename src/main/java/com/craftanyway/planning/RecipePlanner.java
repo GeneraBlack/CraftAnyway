@@ -211,7 +211,10 @@ public class RecipePlanner {
             }
         }
         
-        if (focuses.isEmpty()) return nodes;
+        if (focuses.isEmpty()) {
+            nodes.add(new CraftingPlan.PlanNode(target, "DEBUG: NO_FOCUS", false, null, target.getCount(), new ArrayList<>(), 999, ""));
+            return nodes;
+        }
         
         // Pass all focuses at once
         List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
@@ -234,7 +237,10 @@ public class RecipePlanner {
                     String recipeId = (recipe != null && recipe.getId() != null) ? recipe.getId().toString() : ("jei:" + category.getRecipeType().getUid().toString());
                     
                     if (!isRoot) {
-                        if (pref != null && !recipeId.equals(pref)) continue;
+                        if (pref != null && !recipeId.equals(pref)) {
+                            nodes.add(new CraftingPlan.PlanNode(target, "DEBUG MISMATCH: " + recipeId + " vs " + pref, false, null, target.getCount(), new ArrayList<>(), 999, recipeId));
+                            continue;
+                        }
                         if (pref == null && !nodes.isEmpty()) break; // Already got a default recipe
                     }
                     List<Ingredient> ingredients = extractIngredientsFromObject(recipeObj);
@@ -271,6 +277,7 @@ public class RecipePlanner {
                         }
                     }
                     if (hasCycle) {
+                        nodes.add(new CraftingPlan.PlanNode(target, "DEBUG CYCLE: " + recipeId, false, null, target.getCount(), new ArrayList<>(), 999, recipeId));
                         continue; // Skip this recipe to prevent circular loops
                     }
                         
