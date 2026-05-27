@@ -54,12 +54,16 @@ public class ShoppingListOverlay {
             ry += 12;
 
             for (CraftingPlan.StepItem stepItem : step.items.values()) {
-                ItemStack stack = stepItem.stack;
-                int have = stepItem.have;
-                int needed = stepItem.needed;
+                mezz.jei.api.ingredients.ITypedIngredient<?> stack = stepItem.ingredient;
+                int have = (int) stepItem.have;
+                int needed = (int) stepItem.needed;
 
-                guiGraphics.renderItem(stack, x, ry);
-                guiGraphics.renderItemDecorations(mc.font, stack, x, ry);
+                var renderer = com.craftanyway.jei.CraftAnywayJeiPlugin.getJeiRuntime().getIngredientManager().getIngredientRenderer(stack.getType());
+                guiGraphics.pose().pushPose();
+                guiGraphics.pose().translate(x, ry, 0);
+                ((mezz.jei.api.ingredients.IIngredientRenderer<Object>)renderer).render(guiGraphics, stack.getIngredient());
+                guiGraphics.pose().popPose();
+                // no simple decorations for typed ingredients
 
                 int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
                 guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);

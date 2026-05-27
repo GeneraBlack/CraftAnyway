@@ -1,54 +1,52 @@
 package com.craftanyway.client.gui;
 
+import com.craftanyway.jei.CraftAnywayJeiPlugin;
 import com.craftanyway.planning.CraftingPlan;
 import com.craftanyway.planning.RecipePlanner;
 import com.mojang.blaze3d.systems.RenderSystem;
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.recipe.category.IRecipeCategory;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.IIngredientRenderer;
+import mezz.jei.api.ingredients.IIngredientHelper;
+import org.lwjgl.glfw.GLFW;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.ArrayList;
+import java.util.*;
 
 public class PlanScreen extends Screen {
 
     private List<CraftingPlan> plans;
-    private double panX = 0;
-    private double panY = 0;
+    private double panX = 300;
+    private double panY = 50;
     private double zoom = 1.0;
-    private ItemStack targetItem;
+    private ITypedIngredient<?> targetIngredient;
+    private long targetQuantity;
 
-    private static class NodeHitbox {
-        CraftingPlan.PlanNode node;
-        int x, y, width, height;
-        NodeHitbox(CraftingPlan.PlanNode node, int x, int y, int width, int height) {
-            this.node = node;
-            this.x = x;
-            this.y = y;
-            this.width = width;
-            this.height = height;
-        }
-        boolean contains(double mx, double my) {
-            return mx >= x && mx <= x + width && my >= y && my <= y + height;
-        }
-    }
-    private List<NodeHitbox> nodeHitboxes = new ArrayList<>();
-
-    private boolean popupActive = false;
-    private CraftingPlan.PlanNode popupNode = null;
-    private List<RecipePlanner.RecipeOption> popupOptions = null;
-    private List<RecipePlanner.RecipeOption> popupVariants = null;
-    private double popupX, popupY;
+    private Map<CraftingPlan.PlanNode, IRecipeLayoutDrawable<?>> jeiLayouts = new HashMap<>();
+    
+    // UI state
+    private boolean isDragging = false;
+    
+    // Dropdown state
+    private CraftingPlan.PlanNode activeDropdownNode = null;
+    private boolean isCategoryDropdown = false;
+    private int dropdownX = 0;
+    private int dropdownY = 0;
+    private List<RecipePlanner.RecipeOption> currentDropdownOptions = new ArrayList<>();
 
     public PlanScreen(List<CraftingPlan> plans) {
-        super(Component.literal("Crafting Plan Tree"));
+        super(Component.literal("Crafting Planner"));
         this.plans = plans;
         if (!plans.isEmpty()) {
-            this.targetItem = plans.get(0).getTarget().copy();
+            this.targetIngredient = plans.get(0).getTarget();
+            this.targetQuantity = plans.get(0).getTargetAmount();
         }
     }
 
@@ -56,234 +54,210 @@ public class PlanScreen extends Screen {
     protected void init() {
         super.init();
         
-        if (targetItem != null) {
+        if (targetIngredient != null) {
             this.addRenderableWidget(Button.builder(Component.literal("-"), btn -> {
-                if (targetItem.getCount() > 1) {
-                    targetItem.shrink(1);
-                    RecipePlanner.plan(targetItem);
-                    this.plans = RecipePlanner.getAlternativePlans();
-                    this.clearWidgets();
-                    this.init();
+                if (targetQuantity > 1) {
+                    targetQuantity--;
+                    refreshPlan();
                 }
-            }).bounds(10, 30, 20, 20).build());
+            }).bounds(100, 20, 20, 20).build());
             
             this.addRenderableWidget(Button.builder(Component.literal("+"), btn -> {
-                if (targetItem.getCount() < targetItem.getMaxStackSize()) {
-                    targetItem.grow(1);
-                    RecipePlanner.plan(targetItem);
-                    this.plans = RecipePlanner.getAlternativePlans();
-                    this.clearWidgets();
-                    this.init();
+                if (targetQuantity < 999999) {
+                    targetQuantity++;
+                    refreshPlan();
                 }
-            }).bounds(80, 30, 20, 20).build());
+            }).bounds(140, 20, 20, 20).build());
         }
-        
-        int startX = 50;
-        for (int i = 0; i < plans.size(); i++) {
-            final CraftingPlan plan = plans.get(i);
-            int xPos = startX + (i * 400); // Match new spacing
-            
-            this.addRenderableWidget(Button.builder(Component.literal("Select Path " + (i + 1)), btn -> {
-                RecipePlanner.setCurrentPlan(plan);
-                this.minecraft.setScreen(null);
-            }).bounds(xPos, 40, 100, 20).build());
-        }
+    }
+    
+    private void refreshPlan() {
+        RecipePlanner.plan(targetIngredient, targetQuantity);
+        this.plans = RecipePlanner.getAlternativePlans();
+        this.jeiLayouts.clear();
+        this.activeDropdownNode = null;
+        this.clearWidgets();
+        this.init();
     }
 
     @Override
     public void renderBackground(GuiGraphics guiGraphics) {
-        // Draw a premium custom dark opaque background to avoid Minecraft's default blur shader and prevent ghosting
-        guiGraphics.fill(0, 0, this.width, this.height, 0xFF0A0A0A);
+        // Dark grey background as requested in mockup
+        guiGraphics.fill(0, 0, this.width, this.height, 0xFF2B2B2B);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        this.renderBackground(guiGraphics);
         
+        // Split screen: 25% sidebar, 75% pathbuilder
+        int sidebarWidth = Math.max(200, this.width / 4);
+        
+        // Render Pathbuilder Area
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(panX, panY, 50); // Translate Z by 50 to avoid any background overlap
+        // Enable scissoring for the right panel so panning doesn't draw over the sidebar
+        guiGraphics.enableScissor(sidebarWidth, 0, this.width, this.height);
+        
+        guiGraphics.pose().translate(panX, panY, 0);
         guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
 
-        nodeHitboxes.clear();
-
-        int startX = 100;
-        for (int i = 0; i < plans.size(); i++) {
-            CraftingPlan plan = plans.get(i);
-            int xPos = startX + (i * 400); // Increased spacing
-            
-            // Calculate dynamic requirements
-            CraftingPlan.PlanResult result = plan.calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
-
-            int ry = 20;
-            int rx = xPos - 40;
-
-            if (!result.steps.isEmpty()) {
-                guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", xPos - 40, ry, 0xFFFFAA);
-                ry += 15;
-                for (CraftingPlan.CraftingStep step : result.steps) {
-                    guiGraphics.drawString(this.font, "Step " + step.stepNumber + ":", xPos - 40, ry, 0xAAAAAA);
-                    ry += 15;
-                    rx = xPos - 40;
-                    
-                    for (CraftingPlan.StepItem stepItem : step.items.values()) {
-                        ItemStack stack = stepItem.stack.copy();
-                        guiGraphics.renderItem(stack, rx, ry);
-                        guiGraphics.renderItemDecorations(this.font, stack, rx, ry);
-                        
-                        String text = stepItem.have + "/" + stepItem.needed;
-                        guiGraphics.pose().pushPose();
-                        guiGraphics.pose().scale(0.75f, 0.75f, 1f);
-                        guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
-                        guiGraphics.pose().popPose();
-                        
-                        rx += 25;
-                        if (rx > xPos + 120) {
-                            rx = xPos - 40;
-                            ry += 25;
-                        }
-                    }
-                    ry += 25;
-                }
-            } else {
-                ry += 5;
-            }
-
-            drawNodeTree(guiGraphics, plan.getRootNode(), xPos, ry + 20);
+        if (!plans.isEmpty()) {
+            CraftingPlan plan = plans.get(0);
+            drawNodeTree(guiGraphics, plan.getRootNode(), (this.width - sidebarWidth) / 2, 50, mouseX, mouseY);
         }
 
+        guiGraphics.disableScissor();
         guiGraphics.pose().popPose();
-
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
-        guiGraphics.drawString(this.font, "Drag to pan. Scroll to zoom. Click a button to select a path.", 10, 10, 0xAAAAAA);
-
-        if (targetItem != null) {
-            guiGraphics.drawString(this.font, "Qty: " + targetItem.getCount(), 35, 36, 0xFFFFFF);
-        }
-
-        if (popupActive && popupOptions != null) {
-            renderPopup(guiGraphics, mouseX, mouseY);
-        }
-    }
-
-    private void renderPopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        int textWidth = 150;
-        int rowHeight = 20;
-        int headerHeight = 15;
         
-        int optionsCount = popupOptions != null ? popupOptions.size() : 0;
-        int variantsCount = popupVariants != null ? popupVariants.size() : 0;
-        
-        int maxItems = 0;
-        if (popupOptions != null) {
-            for (RecipePlanner.RecipeOption opt : popupOptions) {
-                if (opt.previewItems != null) {
-                    maxItems = Math.max(maxItems, opt.previewItems.size());
-                }
-            }
-        }
-        if (popupVariants != null) {
-            for (RecipePlanner.RecipeOption opt : popupVariants) {
-                if (opt.previewItems != null) {
-                    maxItems = Math.max(maxItems, opt.previewItems.size());
-                }
-            }
-        }
-        
-        int width = textWidth + (maxItems * 18) + 10;
-        if (width < 200) width = 200;
-        
-        int totalRows = optionsCount + variantsCount;
-        int height = totalRows * rowHeight + 10;
-        if (optionsCount > 0) height += headerHeight;
-        if (variantsCount > 0) height += headerHeight;
-        
+        // Render JEI Overlays (Tooltips) and hitboxes
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400);
-
-        guiGraphics.fill((int)popupX, (int)popupY, (int)popupX + width, (int)popupY + height, 0xEE0A0A0A);
-        guiGraphics.renderOutline((int)popupX, (int)popupY, width, height, 0xFFAAAAAA);
+        guiGraphics.enableScissor(sidebarWidth, 0, this.width, this.height);
+        guiGraphics.pose().translate(panX, panY, 400); // High Z for overlays
+        guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
         
-        int currentY = (int)popupY + 5;
-        
-        if (optionsCount > 0) {
-            guiGraphics.drawString(this.font, "Alternative Recipes:", (int)popupX + 5, currentY, 0xAAAAAA);
-            currentY += headerHeight;
-            for (RecipePlanner.RecipeOption opt : popupOptions) {
-                boolean hovered = mouseX >= popupX && mouseX <= popupX + width && mouseY >= currentY && mouseY <= currentY + rowHeight;
-                if (hovered) {
-                    guiGraphics.fill((int)popupX + 1, currentY, (int)popupX + width - 1, currentY + rowHeight, 0x55FFFFFF);
-                }
-                
-                String text = opt.name;
-                if (opt.cost > 0) text += " (Cost: " + opt.cost + ")";
-                guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xFFFFAA : 0xFFFFFF);
-                
-                if (opt.previewItems != null) {
-                    int itemX = (int)popupX + textWidth;
-                    for (net.minecraft.world.item.ItemStack stack : opt.previewItems) {
-                        guiGraphics.renderItem(stack, itemX, currentY + 2);
-                        itemX += 18;
-                    }
-                }
-                
-                currentY += rowHeight;
-            }
+        if (!plans.isEmpty()) {
+            drawNodeOverlays(guiGraphics, plans.get(0).getRootNode(), (this.width - sidebarWidth) / 2, 50, mouseX, mouseY);
         }
         
-        if (variantsCount > 0) {
-            guiGraphics.drawString(this.font, "Alternative Variants:", (int)popupX + 5, currentY, 0xAAAAAA);
-            currentY += headerHeight;
-            for (RecipePlanner.RecipeOption opt : popupVariants) {
-                boolean hovered = mouseX >= popupX && mouseX <= popupX + width && mouseY >= currentY && mouseY <= currentY + rowHeight;
-                if (hovered) {
-                    guiGraphics.fill((int)popupX + 1, currentY, (int)popupX + width - 1, currentY + rowHeight, 0x55FFFFFF);
-                }
-                
-                String text = opt.name;
-                guiGraphics.drawString(this.font, text, (int)popupX + 5, currentY + 6, hovered ? 0xAAFFAA : 0xFFFFFF);
-                
-                if (opt.previewItems != null) {
-                    int itemX = (int)popupX + textWidth;
-                    for (net.minecraft.world.item.ItemStack stack : opt.previewItems) {
-                        guiGraphics.renderItem(stack, itemX, currentY + 2);
-                        itemX += 18;
-                    }
-                }
-                
-                currentY += rowHeight;
-            }
-        }
-        
+        guiGraphics.disableScissor();
         guiGraphics.pose().popPose();
+
+        // Render Sidebar
+        guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
+        guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
+        
+        guiGraphics.drawString(this.font, "Qty: " + (targetIngredient != null ? targetQuantity : 1), 20, 26, 0xFFFFFF);
+        
+        guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
+        
+        if (!plans.isEmpty()) {
+            CraftingPlan.PlanResult result = plans.get(0).calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
+            int ry = 70;
+            
+            for (CraftingPlan.CraftingStep step : result.steps) {
+                guiGraphics.drawString(this.font, "Step " + step.stepNumber + ":", 10, ry, 0xAAAAAA);
+                ry += 15;
+                int rx = 10;
+                
+                for (CraftingPlan.StepItem stepItem : step.items.values()) {
+                    ITypedIngredient<?> stack = stepItem.ingredient;
+                    renderIngredient(guiGraphics, stack, rx, ry);
+                    renderIngredientDecorations(guiGraphics, stack, rx, ry, stepItem.have + "/" + stepItem.needed);
+                    
+                    String text = stepItem.have + "/" + stepItem.needed;
+                    guiGraphics.pose().pushPose();
+                    guiGraphics.pose().scale(0.75f, 0.75f, 1f);
+                    guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
+                    guiGraphics.pose().popPose();
+                    
+                    rx += 25;
+                    if (rx > sidebarWidth - 30) {
+                        rx = 10;
+                        ry += 25;
+                    }
+                }
+                ry += 25;
+            }
+        }
+        
+        // Render Header
+        guiGraphics.drawCenteredString(this.font, "Crafting Planner", this.width / 2 + sidebarWidth / 2, 10, 0xFFFFFF);
+        guiGraphics.drawString(this.font, "Pathbuilder:", sidebarWidth + 10, 30, 0xFFFFFFFF);
+        
+        // Render Dropdown if active (drawn last to be on top)
+        if (activeDropdownNode != null) {
+            renderDropdown(guiGraphics, mouseX, mouseY);
+        }
+        
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
+    }
+    
+    private <T> IRecipeLayoutDrawable<T> getJeiDrawable(CraftingPlan.PlanNode node) {
+        if (jeiLayouts.containsKey(node)) {
+            return (IRecipeLayoutDrawable<T>) jeiLayouts.get(node);
+        }
+        
+        if (node.getRawRecipe() == null || node.getRecipeCategory() == null) {
+            jeiLayouts.put(node, null);
+            return null;
+        }
+        
+        try {
+            var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+            if (jeiRuntime != null) {
+                IRecipeCategory<T> category = (IRecipeCategory<T>) node.getRecipeCategory();
+                T recipe = (T) node.getRawRecipe();
+                var focusGroup = jeiRuntime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
+                
+                Optional<IRecipeLayoutDrawable<T>> opt = jeiRuntime.getRecipeManager().createRecipeLayoutDrawable(category, recipe, focusGroup);
+                if (opt.isPresent()) {
+                    IRecipeLayoutDrawable<T> drawable = opt.get();
+                    jeiLayouts.put(node, drawable);
+                    return drawable;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+        
+        jeiLayouts.put(node, null);
+        return null;
     }
 
-    private void drawNodeTree(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y) {
+    private void drawNodeTree(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y, int mouseX, int mouseY) {
         if (node == null) return;
 
-        // Draw item
-        guiGraphics.renderItem(node.getOutput(), x - 8, y);
-        // Force rendering the count even if 1 to show quantities everywhere
-        String qtyText = String.valueOf(node.getOutput().getCount());
-        guiGraphics.renderItemDecorations(this.font, node.getOutput(), x - 8, y, qtyText);
-        nodeHitboxes.add(new NodeHitbox(node, x - 8, y, 16, 16));
+        // Draw Name
+        guiGraphics.drawCenteredString(this.font, getIngredientName(node.getOutput()), x, y, 0xFFFFFF);
         
-        if (node.getTagOptions() != null && node.getTagOptions().length > 1) {
-            guiGraphics.drawString(this.font, "*", x + 4, y - 4, 0xFFFF55);
+        // Draw Icon and Qty
+        renderIngredient(guiGraphics, node.getOutput(), x - 8, y + 12);
+        renderIngredientDecorations(guiGraphics, node.getOutput(), x - 8, y + 12, String.valueOf(node.getAmount()));
+        
+        // Draw Dropdowns
+        int catWidth = 100;
+        int recWidth = 100;
+        int dropY = y + 32;
+        int catX = x - catWidth - 2;
+        int recX = x + 2;
+        
+        // Category Dropdown Box
+        guiGraphics.fill(catX, dropY, catX + catWidth, dropY + 12, 0xFF555555);
+        guiGraphics.drawString(this.font, truncate(node.getCategoryName(), 20), catX + 2, dropY + 2, 0xFFFFFF);
+        
+        // Recipe Dropdown Box
+        String recName = "Recipe";
+        if (node.getRecipeId() != null && node.getRecipeId().contains(":")) {
+            String[] parts = node.getRecipeId().split(":");
+            recName = parts[parts.length - 1];
         }
-
-        // Draw category text below item
-        String cat = node.getCategoryName();
-        if (cat != null && !cat.equals("None")) {
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().scale(0.5f, 0.5f, 1f);
-            guiGraphics.drawCenteredString(this.font, cat, (x) * 2, (y + 18) * 2, 0xFFFF55);
-            guiGraphics.pose().popPose();
+        if (node.getCategoryName().equals("Raw") || node.getCategoryName().equals("Select Category...")) {
+            recName = node.getCategoryName();
+        }
+        guiGraphics.fill(recX, dropY, recX + recWidth, dropY + 12, 0xFF555555);
+        guiGraphics.drawString(this.font, truncate(recName, 20), recX + 2, dropY + 2, 0xFFFFFF);
+        
+        int nextY = dropY + 16;
+        
+        // Inline JEI Render
+        IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
+        if (drawable != null) {
+            int drawX = x - (drawable.getRect().getWidth() / 2);
+            drawable.setPosition(drawX, nextY);
+            
+            // Adjust mouse coordinates to match zoom/pan for JEI internal checks
+            int localMouseX = (int)((mouseX - panX) / zoom);
+            int localMouseY = (int)((mouseY - panY) / zoom);
+            
+            drawable.drawRecipe(guiGraphics, localMouseX, localMouseY);
+            nextY += drawable.getRect().getHeight() + 10;
+        } else {
+            nextY += 10; // Spacing if no recipe
         }
 
         if (!node.isLeaf()) {
             List<CraftingPlan.PlanNode> children = node.getChildren();
 
-            // Calculate total width of all children subtrees
             int totalWidth = 0;
             int[] childWidths = new int[children.size()];
             for (int i = 0; i < children.size(); i++) {
@@ -292,144 +266,255 @@ public class PlanScreen extends Screen {
             }
 
             int startX = x - (totalWidth / 2);
-            int childY = y + 50; // Increased vertical spacing for modern airy look
+            int childY = nextY + 30; // 30px vertical gap between layers
 
             int currentX = startX;
             for (int i = 0; i < children.size(); i++) {
                 int childWidth = childWidths[i];
                 int childX = currentX + (childWidth / 2);
 
-                // Draw connecting line with thickness 2 to survive any zoom scaling and center properly
-                guiGraphics.fill(x, y + 16, x + 2, y + 28, 0xFFFFFFFF); // Vertical down from parent
-                guiGraphics.fill(Math.min(x, childX), y + 28, Math.max(x, childX) + 2, y + 30, 0xFFFFFFFF); // Horizontal branch
-                guiGraphics.fill(childX, y + 28, childX + 2, childY, 0xFFFFFFFF); // Vertical down to child
+                // Orthogonal lines
+                int midY = nextY + 15;
+                guiGraphics.fill(x, nextY, x + 2, midY, 0xFFFFFFFF);
+                guiGraphics.fill(Math.min(x, childX), midY, Math.max(x, childX) + 2, midY + 2, 0xFFFFFFFF);
+                guiGraphics.fill(childX, midY, childX + 2, childY, 0xFFFFFFFF);
 
-                drawNodeTree(guiGraphics, children.get(i), childX, childY);
+                drawNodeTree(guiGraphics, children.get(i), childX, childY, mouseX, mouseY);
 
                 currentX += childWidth;
             }
         }
     }
+    
+    private void drawNodeOverlays(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y, int mouseX, int mouseY) {
+        if (node == null) return;
+        
+        // Local mouse for JEI
+        int localMouseX = (int)((mouseX - panX) / zoom);
+        int localMouseY = (int)((mouseY - panY) / zoom);
+        
+        IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
+        if (drawable != null) {
+            drawable.drawOverlays(guiGraphics, localMouseX, localMouseY);
+        }
+        
+        if (!node.isLeaf()) {
+            List<CraftingPlan.PlanNode> children = node.getChildren();
+            int totalWidth = 0;
+            int[] childWidths = new int[children.size()];
+            for (int i = 0; i < children.size(); i++) {
+                childWidths[i] = calculateSubtreeWidth(children.get(i));
+                totalWidth += childWidths[i];
+            }
+
+            int startX = x - (totalWidth / 2);
+            int dropY = y + 32;
+            int nextY = dropY + 16;
+            if (drawable != null) nextY += drawable.getRect().getHeight() + 10;
+            else nextY += 10;
+            int childY = nextY + 30;
+
+            int currentX = startX;
+            for (int i = 0; i < children.size(); i++) {
+                int childWidth = childWidths[i];
+                int childX = currentX + (childWidth / 2);
+                drawNodeOverlays(guiGraphics, children.get(i), childX, childY, mouseX, mouseY);
+                currentX += childWidth;
+            }
+        }
+    }
+
+    private String truncate(String text, int maxLen) {
+        if (text == null) return "";
+        if (text.length() <= maxLen) return text;
+        return text.substring(0, maxLen - 2) + "..";
+    }
 
     private int calculateSubtreeWidth(CraftingPlan.PlanNode node) {
         if (node == null) return 0;
-        if (node.isLeaf()) return 50; // Premium horizontal spacing per leaf node
+        
+        int myWidth = 240; // Minimum width for a node (to fit name, dropdowns, JEI rect)
+        IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
+        if (drawable != null) {
+            myWidth = Math.max(myWidth, drawable.getRect().getWidth() + 20);
+        }
+        
+        if (node.isLeaf()) return myWidth;
 
         int total = 0;
         for (CraftingPlan.PlanNode child : node.getChildren()) {
             total += calculateSubtreeWidth(child);
         }
-        return Math.max(50, total);
+        return Math.max(myWidth, total);
     }
-
-    private static int gcd(int a, int b) {
-        return b == 0 ? a : gcd(b, a % b);
-    }
-
-    private static String getFractionString(int have, int needed) {
-        if (needed <= 0) return "0";
-        int g = gcd(have, needed);
-        int num = have / g;
-        int den = needed / g;
-        if (den == 1) {
-            return String.valueOf(num);
-        }
-        return num + "/" + den;
-    }
-
-    private int countItem(net.minecraft.world.entity.player.Inventory inv, net.minecraft.world.item.Item item) {
-        int count = 0;
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && stack.getItem() == item) {
-                count += stack.getCount();
-            }
-        }
-        return count;
-    }
-
+    
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (popupActive) {
-            int width = 200;
-            int rowHeight = 20;
-            int headerHeight = 15;
-            
-            int optionsCount = popupOptions != null ? popupOptions.size() : 0;
-            int variantsCount = popupVariants != null ? popupVariants.size() : 0;
-            
-            int totalRows = optionsCount + variantsCount;
-            int height = totalRows * rowHeight + 10;
-            if (optionsCount > 0) height += headerHeight;
-            if (variantsCount > 0) height += headerHeight;
-            
-            if (mouseX >= popupX && mouseX <= popupX + width && mouseY >= popupY && mouseY <= popupY + height) {
-                int currentY = (int)popupY + 5;
-                
-                if (optionsCount > 0) {
-                    currentY += headerHeight;
-                    for (RecipePlanner.RecipeOption opt : popupOptions) {
-                        if (mouseY >= currentY && mouseY <= currentY + rowHeight) {
-                            RecipePlanner.userPreferences.put(popupNode.getOutput().getItem().toString(), opt.recipeId);
-                            RecipePlanner.plan(targetItem);
-                            this.plans = RecipePlanner.getAlternativePlans();
-                            this.clearWidgets();
-                            this.init();
-                            popupActive = false;
-                            return true;
-                        }
-                        currentY += rowHeight;
-                    }
+        if (activeDropdownNode != null) {
+            // Check if clicked inside dropdown
+            int rowHeight = 15;
+            int dropH = currentDropdownOptions.size() * rowHeight;
+            if (mouseX >= dropdownX && mouseX <= dropdownX + 160 && mouseY >= dropdownY && mouseY <= dropdownY + dropH) {
+                int index = (int)((mouseY - dropdownY) / rowHeight);
+                if (index >= 0 && index < currentDropdownOptions.size()) {
+                    RecipePlanner.RecipeOption opt = currentDropdownOptions.get(index);
+                    RecipePlanner.setPreference(RecipePlanner.getUniqueId(activeDropdownNode.getOutput()), opt.recipeId);
+                    refreshPlan();
+                    return true;
                 }
-                
-                if (variantsCount > 0) {
-                    currentY += headerHeight;
-                    for (RecipePlanner.RecipeOption opt : popupVariants) {
-                        if (mouseY >= currentY && mouseY <= currentY + rowHeight) {
-                            RecipePlanner.tagPreferences.put(popupNode.getTagSignature(), opt.recipeId);
-                            RecipePlanner.plan(targetItem);
-                            this.plans = RecipePlanner.getAlternativePlans();
-                            this.clearWidgets();
-                            this.init();
-                            popupActive = false;
-                            return true;
-                        }
-                        currentY += rowHeight;
-                    }
-                }
-            } else {
-                popupActive = false;
-                return true;
             }
+            // Clicked outside, close dropdown
+            activeDropdownNode = null;
+            return true;
         }
 
         if (super.mouseClicked(mouseX, mouseY, button)) return true;
 
-        if (button == 0 || button == 1) { // Left or right click
+        if (button == 0 && !plans.isEmpty()) {
             double worldX = (mouseX - panX) / zoom;
             double worldY = (mouseY - panY) / zoom;
-
-            for (NodeHitbox box : nodeHitboxes) {
-                if (box.contains(worldX, worldY)) {
-                    this.popupActive = true;
-                    this.popupNode = box.node;
-                    ItemStack targetForOptions = box.node.getOutput().copy();
-                    this.popupOptions = RecipePlanner.getAvailableOptions(targetForOptions);
-                    this.popupVariants = RecipePlanner.getVariantOptions(box.node);
-                    this.popupX = mouseX;
-                    this.popupY = mouseY;
+            
+            int sidebarWidth = Math.max(200, this.width / 4);
+            if (mouseX > sidebarWidth) {
+                if (checkNodeClicks(plans.get(0).getRootNode(), (this.width - sidebarWidth) / 2, 50, worldX, worldY)) {
                     return true;
                 }
+                isDragging = true;
+                return true;
             }
         }
         
         return false;
     }
+    
+    private boolean checkNodeClicks(CraftingPlan.PlanNode node, int x, int y, double worldX, double worldY) {
+        if (node == null) return false;
+        
+        int catWidth = 80;
+        int recWidth = 80;
+        int dropY = y + 32;
+        int catX = x - catWidth - 2;
+        int recX = x + 2;
+        
+        // Check Category Click
+        if (worldX >= catX && worldX <= catX + catWidth && worldY >= dropY && worldY <= dropY + 12) {
+            openDropdown(node, true, (int)(catX * zoom + panX), (int)((dropY + 14) * zoom + panY));
+            return true;
+        }
+        
+        // Check Recipe Click
+        if (worldX >= recX && worldX <= recX + recWidth && worldY >= dropY && worldY <= dropY + 12) {
+            openDropdown(node, false, (int)(recX * zoom + panX), (int)((dropY + 14) * zoom + panY));
+            return true;
+        }
+        
+        // Inline JEI interaction?
+        IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
+        int nextY = dropY + 16;
+        if (drawable != null) {
+            // We could pass clicks to JEI here, but simple planning is enough for now.
+            nextY += drawable.getRect().getHeight() + 10;
+        } else {
+            nextY += 10;
+        }
+        
+        if (!node.isLeaf()) {
+            List<CraftingPlan.PlanNode> children = node.getChildren();
+            int totalWidth = 0;
+            int[] childWidths = new int[children.size()];
+            for (int i = 0; i < children.size(); i++) {
+                childWidths[i] = calculateSubtreeWidth(children.get(i));
+                totalWidth += childWidths[i];
+            }
+            int startX = x - (totalWidth / 2);
+            int childY = nextY + 30;
+            int currentX = startX;
+            for (int i = 0; i < children.size(); i++) {
+                int childWidth = childWidths[i];
+                int childX = currentX + (childWidth / 2);
+                if (checkNodeClicks(children.get(i), childX, childY, worldX, worldY)) return true;
+                currentX += childWidth;
+            }
+        }
+        return false;
+    }
+    
+    private void openDropdown(CraftingPlan.PlanNode node, boolean isCategory, int x, int y) {
+        this.activeDropdownNode = node;
+        this.isCategoryDropdown = isCategory;
+        this.dropdownX = x;
+        this.dropdownY = y;
+        
+        List<RecipePlanner.RecipeOption> allOptions = RecipePlanner.getAvailableOptions(node.getOutput());
+        this.currentDropdownOptions.clear();
+        
+        if (isCategory) {
+            // Group by category, show 1 option per category
+            Set<String> seenCats = new HashSet<>();
+            for (RecipePlanner.RecipeOption opt : allOptions) {
+                if (!seenCats.contains(opt.name)) {
+                    seenCats.add(opt.name);
+                    this.currentDropdownOptions.add(opt); // opt.name is category
+                }
+            }
+        } else {
+            // Show recipes ONLY for the current category
+            String currentCat = node.getCategoryName();
+            for (RecipePlanner.RecipeOption opt : allOptions) {
+                if (opt.name.equals(currentCat) || opt.name.equals("Raw")) {
+                    this.currentDropdownOptions.add(opt);
+                }
+            }
+        }
+    }
+    
+    private void renderDropdown(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        int rowHeight = 15;
+        int width = 200;
+        int height = currentDropdownOptions.size() * rowHeight;
+        
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 800); // Very high Z
+        
+        guiGraphics.fill(dropdownX, dropdownY, dropdownX + width, dropdownY + height, 0xEE111111);
+        guiGraphics.renderOutline(dropdownX, dropdownY, width, height, 0xFFAAAAAA);
+        
+        int cy = dropdownY;
+        for (RecipePlanner.RecipeOption opt : currentDropdownOptions) {
+            boolean hovered = mouseX >= dropdownX && mouseX <= dropdownX + width && mouseY >= cy && mouseY <= cy + rowHeight;
+            if (hovered) {
+                guiGraphics.fill(dropdownX + 1, cy, dropdownX + width - 1, cy + rowHeight, 0x55FFFFFF);
+            }
+            
+            String text = isCategoryDropdown ? opt.name : opt.recipeId;
+            if (!isCategoryDropdown && text.contains(":")) {
+                String[] parts = text.split(":");
+                text = parts[parts.length - 1];
+            }
+            if (!isCategoryDropdown && opt.name.equals("Raw")) {
+                text = "Raw";
+            }
+            
+            guiGraphics.drawString(this.font, truncate(text, 35), dropdownX + 5, cy + 4, hovered ? 0xFFFFAA : 0xFFFFFF);
+            cy += rowHeight;
+        }
+        
+        guiGraphics.pose().popPose();
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        isDragging = false;
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        panX += dragX;
-        panY += dragY;
+        if (isDragging) {
+            panX += dragX;
+            panY += dragY;
+            return true;
+        }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
@@ -440,10 +525,45 @@ public class PlanScreen extends Screen {
         } else if (scrollY < 0) {
             zoom /= 1.1;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollY);
+        return true;
     }
 
-    @Override
+    private String getIngredientName(ITypedIngredient<?> typedIng) {
+        var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+        if (jeiRuntime != null) {
+            IIngredientHelper helper = jeiRuntime.getIngredientManager().getIngredientHelper(typedIng.getType());
+            return helper.getDisplayName(typedIng.getIngredient());
+        }
+        return "Unknown";
+    }
+
+    private void renderIngredient(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y) {
+        var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+        if (jeiRuntime != null) {
+            IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(x, y, 0);
+            renderer.render(guiGraphics, typedIng.getIngredient());
+            guiGraphics.pose().popPose();
+        }
+    }
+
+    private void renderIngredientDecorations(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y, String text) {
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 200);
+        guiGraphics.drawString(this.font, text, x + 17 - this.font.width(text), y + 9, 16777215, true);
+        guiGraphics.pose().popPose();
+    }
+
+    private void renderIngredientTooltip(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int mouseX, int mouseY) {
+        var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
+        if (jeiRuntime != null) {
+            IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
+            List<Component> tooltip = renderer.getTooltip(typedIng.getIngredient(), net.minecraft.world.item.TooltipFlag.Default.NORMAL);
+            guiGraphics.renderTooltip(this.font, tooltip, java.util.Optional.empty(), mouseX, mouseY);
+        }
+    }
+
     public boolean isPauseScreen() {
         return false;
     }

@@ -54,7 +54,8 @@ public class Keybinds {
         
         if (ingredientUnderMouse != null && !ingredientUnderMouse.isEmpty()) {
             if (mc.level != null) {
-                RecipePlanner.plan(ingredientUnderMouse);
+                var opt = com.craftanyway.jei.CraftAnywayJeiPlugin.getJeiRuntime().getIngredientManager().createTypedIngredient(ingredientUnderMouse);
+                if (opt.isPresent()) RecipePlanner.plan(opt.get(), ingredientUnderMouse.getCount());
                 
                 if (!RecipePlanner.getAlternativePlans().isEmpty()) {
                     mc.setScreen(new PlanScreen(RecipePlanner.getAlternativePlans()));

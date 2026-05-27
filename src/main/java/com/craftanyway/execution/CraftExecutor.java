@@ -45,7 +45,7 @@ public class CraftExecutor {
         }
         
         if (plan.getRootNode() != null) {
-            flattenPlan(plan.getRootNode(), plan.getRootNode().getOutput().getCount(), remainingInv, nodesToCraft, screen);
+            flattenPlan(plan.getRootNode(), (int)plan.getRootNode().getAmount(), remainingInv, nodesToCraft, screen);
         }
         
         if (!nodesToCraft.isEmpty()) {
@@ -60,7 +60,9 @@ public class CraftExecutor {
                                    List<CraftingPlan.PlanNode> list, CraftingScreen screen) {
         if (node == null) return;
 
-        ItemStack output = node.getOutput();
+        Object outIng = node.getOutput().getIngredient();
+        if (!(outIng instanceof ItemStack)) return;
+        ItemStack output = (ItemStack) outIng;
         net.minecraft.world.item.Item item = output.getItem();
 
         // 1. Consume virtual inventory for intermediate items (non-leaf)
@@ -187,7 +189,7 @@ public class CraftExecutor {
                 if (mc.player != null) {
                     mc.player.displayClientMessage(
                         net.minecraft.network.chat.Component.literal("Paused! Please manually produce: " 
-                            + currentNode.getOutput().getHoverName().getString() 
+                            + ((ItemStack)currentNode.getOutput().getIngredient()).getHoverName().getString() 
                             + " via " + currentNode.getCategoryName() 
                             + ". Press 'Craft Plan' to resume once you have it."), 
                         false
