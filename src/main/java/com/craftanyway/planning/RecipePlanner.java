@@ -206,9 +206,14 @@ public class RecipePlanner {
         // Pass all focuses at once
         List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
         
+        String pref = userPreferences.get(itemId);
+        
         for (IRecipeCategory<?> category : categories) {
             if (category.getRecipeType().getUid().getPath().equals("information")) {
                 continue;
+            }
+            if (!isRoot && pref == null && !nodes.isEmpty()) {
+                break; // We already built a default path for this sub-component, skip other categories
             }
 
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
@@ -216,8 +221,13 @@ public class RecipePlanner {
             for (Object recipeObj : recipes) {
                 try {
                     Recipe<?> recipe = extractRecipeFromObject(recipeObj);
-                    List<Ingredient> ingredients = extractIngredientsFromObject(recipeObj);
                     String recipeId = (recipe != null && recipe.getId() != null) ? recipe.getId().toString() : ("jei:" + category.getRecipeType().getUid().toString());
+                    
+                    if (!isRoot) {
+                        if (pref != null && !recipeId.equals(pref)) continue;
+                        if (pref == null && !nodes.isEmpty()) break; // Already got a default recipe
+                    }
+                    List<Ingredient> ingredients = extractIngredientsFromObject(recipeObj);
 
                     // Check if this recipe contains any ingredient that is already in visited (circular dependency)
                     boolean hasCycle = false;
@@ -338,22 +348,6 @@ public class RecipePlanner {
         
         if (!isRoot && !nodes.isEmpty()) {
             CraftingPlan.PlanNode chosen = nodes.get(0);
-            String pref = userPreferences.get(itemId);
-            
-            if (pref != null) {
-                for (CraftingPlan.PlanNode n : nodes) {
-                    if (n.getRecipeId().equals(pref)) {
-                        chosen = n;
-                        break;
-                    }
-                }
-            } else {
-                for (CraftingPlan.PlanNode n : nodes) {
-                    if (n.getCost() < chosen.getCost()) {
-                        chosen = n;
-                    }
-                }
-            }
             nodes.clear();
             nodes.add(chosen);
         } else if (isRoot && nodes.size() > 1) {
