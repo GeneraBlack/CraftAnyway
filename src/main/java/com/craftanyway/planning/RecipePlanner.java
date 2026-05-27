@@ -137,10 +137,20 @@ public class RecipePlanner {
                     List<ItemStack> previewItems = new ArrayList<>();
                     for (Ingredient ing : extractIngredientsFromObject(recipeObj)) {
                         if (!ing.isEmpty()) {
-                            ingredientCount++;
                             ItemStack[] items = ing.getItems();
                             if (items.length > 0) {
-                                previewItems.add(items[0]);
+                                // Filter out the target item from preview items
+                                boolean isOutput = false;
+                                for (ItemStack stack : items) {
+                                    if (stack.getItem().equals(target.getItem())) {
+                                        isOutput = true;
+                                        break;
+                                    }
+                                }
+                                if (!isOutput) {
+                                    ingredientCount++;
+                                    previewItems.add(items[0]);
+                                }
                             }
                         }
                     }
@@ -224,14 +234,22 @@ public class RecipePlanner {
                     String recipeId = (recipe != null && recipe.getId() != null) ? recipe.getId().toString() : ("jei:" + category.getRecipeType().getUid().toString());
                     
                     if (!isRoot) {
-                        if (pref != null && !recipeId.equals(pref)) {
-                            int fallbackCost = getCostWithInventory(target, inv);
-                            nodes.add(new CraftingPlan.PlanNode(target, "MISMATCH: " + recipeId + " != " + pref, false, null, target.getCount(), new ArrayList<>(), fallbackCost, recipeId));
-                            continue;
-                        }
+                        if (pref != null && !recipeId.equals(pref)) continue;
                         if (pref == null && !nodes.isEmpty()) break; // Already got a default recipe
                     }
                     List<Ingredient> ingredients = extractIngredientsFromObject(recipeObj);
+                    
+                    // The reflection scanner often incorrectly extracts the output item as an ingredient.
+                    // This causes artificial cycle detection. Filter out the target item from ingredients.
+                    ingredients.removeIf(ing -> {
+                        if (ing.isEmpty()) return true;
+                        for (ItemStack stack : ing.getItems()) {
+                            if (stack.getItem().equals(target.getItem())) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
 
                     // Check if this recipe contains any ingredient that is already in visited (circular dependency)
                     boolean hasCycle = false;
