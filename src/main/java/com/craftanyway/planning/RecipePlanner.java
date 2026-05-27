@@ -219,6 +219,11 @@ public class RecipePlanner {
         // Pass all focuses at once
         List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList();
         
+        if (categories.isEmpty()) {
+            nodes.add(new CraftingPlan.PlanNode(target, "DEBUG: NO_CATEGORIES", false, null, target.getCount(), new ArrayList<>(), 999, ""));
+            return nodes;
+        }
+        
         String pref = userPreferences.get(itemId);
         
         for (IRecipeCategory<?> category : categories) {
@@ -230,6 +235,10 @@ public class RecipePlanner {
             }
 
             List<?> recipes = recipeManager.createRecipeLookup(category.getRecipeType()).limitFocus(focuses).get().toList();
+            if (recipes.isEmpty()) {
+                nodes.add(new CraftingPlan.PlanNode(target, "DEBUG: NO_RECIPES", false, null, target.getCount(), new ArrayList<>(), 999, ""));
+                continue;
+            }
             
             for (Object recipeObj : recipes) {
                 try {
