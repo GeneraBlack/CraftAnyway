@@ -31,6 +31,20 @@ public class RecipePlanner {
     private static List<CraftingPlan> alternativePlans = new ArrayList<>();
     public static Map<String, String> userPreferences = new java.util.HashMap<>();
     public static Map<String, String> tagPreferences = new java.util.HashMap<>();
+    private static Map<Item, List<ItemStack>> ingredientCache = null;
+
+    public static void clearCache() {
+        ingredientCache = null;
+    }
+
+    private static void ensureCache(mezz.jei.api.runtime.IIngredientManager manager) {
+        if (ingredientCache == null) {
+            ingredientCache = new java.util.HashMap<>();
+            for (ItemStack stack : manager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
+                ingredientCache.computeIfAbsent(stack.getItem(), k -> new ArrayList<>()).add(stack);
+            }
+        }
+    }
 
     public static class RecipeOption {
         public final String recipeId;
@@ -54,6 +68,7 @@ public class RecipePlanner {
         Inventory inv = mc.player != null ? mc.player.getInventory() : null;
         
         if (jeiRuntime != null) {
+            ensureCache(jeiRuntime.getIngredientManager());
             // Find ALL recipes for the root item across all JEI categories
             List<CraftingPlan.PlanNode> rootNodes = buildNodesForTarget(target, new HashSet<>(), true, inv);
             
@@ -103,8 +118,10 @@ public class RecipePlanner {
         
         // Build focuses for this item (same normalization as buildNodesForTarget)
         List<IFocus<ItemStack>> focuses = new ArrayList<>();
-        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
-            if (stack.getItem() == target.getItem()) {
+        ensureCache(ingredientManager);
+        List<ItemStack> variants = ingredientCache.get(target.getItem());
+        if (variants != null) {
+            for (ItemStack stack : variants) {
                 var typedOpt = ingredientManager.createTypedIngredient(stack);
                 if (typedOpt.isPresent()) {
                     focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
@@ -199,8 +216,10 @@ public class RecipePlanner {
         var ingredientManager = jeiRuntime.getIngredientManager();
         List<IFocus<ItemStack>> focuses = new ArrayList<>();
         
-        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
-            if (stack.getItem() == target.getItem()) {
+        ensureCache(ingredientManager);
+        List<ItemStack> variants = ingredientCache.get(target.getItem());
+        if (variants != null) {
+            for (ItemStack stack : variants) {
                 var typedOpt = ingredientManager.createTypedIngredient(stack);
                 if (typedOpt.isPresent()) {
                     focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
