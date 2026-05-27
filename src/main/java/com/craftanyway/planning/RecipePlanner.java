@@ -99,20 +99,18 @@ public class RecipePlanner {
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         mezz.jei.api.runtime.IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
         
-        // Build focuses for this item
+        // Build focuses for this item using the exact stack and generic fallback
         List<IFocus<ItemStack>> focuses = new ArrayList<>();
-        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
-            if (stack.getItem() == target.getItem()) {
-                var typedOpt = ingredientManager.createTypedIngredient(stack);
-                if (typedOpt.isPresent()) {
-                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
-                }
-            }
+        var typedOpt = ingredientManager.createTypedIngredient(target);
+        if (typedOpt.isPresent()) {
+            focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
         }
-        if (focuses.isEmpty()) {
-            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
-            if (typedOpt.isPresent()) {
-                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+        
+        if (target.hasTag()) {
+            ItemStack defaultStack = target.getItem().getDefaultInstance();
+            var defaultOpt = ingredientManager.createTypedIngredient(defaultStack);
+            if (defaultOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, defaultOpt.get()));
             }
         }
         if (focuses.isEmpty()) return options;
@@ -192,24 +190,19 @@ public class RecipePlanner {
 
         IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
         
-        // Find categories that produce this item
+        // Build focuses for this item using the exact stack and generic fallback
         var ingredientManager = jeiRuntime.getIngredientManager();
         List<IFocus<ItemStack>> focuses = new ArrayList<>();
-        
-        for (ItemStack stack : ingredientManager.getAllIngredients(mezz.jei.api.constants.VanillaTypes.ITEM_STACK)) {
-            if (stack.getItem() == target.getItem()) {
-                var typedOpt = ingredientManager.createTypedIngredient(stack);
-                if (typedOpt.isPresent()) {
-                    focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
-                }
-            }
+        var typedOpt = ingredientManager.createTypedIngredient(target);
+        if (typedOpt.isPresent()) {
+            focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
         }
         
-        // Default fallback if JEI index doesn't have it
-        if (focuses.isEmpty()) {
-            var typedOpt = ingredientManager.createTypedIngredient(new ItemStack(target.getItem()));
-            if (typedOpt.isPresent()) {
-                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, typedOpt.get()));
+        if (target.hasTag()) {
+            ItemStack defaultStack = target.getItem().getDefaultInstance();
+            var defaultOpt = ingredientManager.createTypedIngredient(defaultStack);
+            if (defaultOpt.isPresent()) {
+                focuses.add(jeiRuntime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, defaultOpt.get()));
             }
         }
         
