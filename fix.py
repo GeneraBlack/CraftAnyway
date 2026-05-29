@@ -56,3 +56,26 @@ def fix():
 
 if __name__ == "__main__":
     fix()
+import os
+import re
+
+def fix_file(filepath):
+    with open(filepath, 'r') as f:
+        content = f.read()
+
+    # Matrix fixes
+    content = content.replace('.pushPose()', '.pushMatrix()')
+    content = content.replace('.popPose()', '.popMatrix()')
+    # translate(x, y, z) -> translate(x, y)
+    content = re.sub(r'\.translate\(([^,]+),\s*([^,]+),\s*([^)]+)\)', r'.translate(\1, \2)', content)
+
+    # Tooltip fix
+    content = content.replace('guiGraphics.renderTooltip(this.font, tooltip, java.util.Optional.empty(), mouseX, mouseY);', 'guiGraphics.renderTooltip(this.font, tooltip, mouseX, mouseY);')
+
+    with open(filepath, 'w') as f:
+        f.write(content)
+
+for root, dirs, files in os.walk('src'):
+    for file in files:
+        if file.endswith('.java'):
+            fix_file(os.path.join(root, file))

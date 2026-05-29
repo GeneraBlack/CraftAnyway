@@ -102,10 +102,10 @@ public class PlanScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Dark grey background as requested in mockup
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, -10);
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(0, 0);
         guiGraphics.fill(0, 0, this.width, this.height, 0xFF2B2B2B);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
     }
 
     @Override
@@ -116,12 +116,12 @@ public class PlanScreen extends Screen {
         int sidebarWidth = Math.max(200, this.width / 4);
         
         // Render Pathbuilder Area
-        guiGraphics.pose().pushPose();
+        guiGraphics.pose().pushMatrix();
         // Enable scissoring for the right panel so panning doesn't draw over the sidebar
         guiGraphics.enableScissor(sidebarWidth, 0, this.width, this.height);
         
-        guiGraphics.pose().translate(panX, panY, 0);
-        guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
+        guiGraphics.pose().translate((float) panX, (float) panY);
+        guiGraphics.pose().scale((float) zoom, (float) zoom);
 
         if (!plans.isEmpty()) {
             CraftingPlan plan = plans.get(0);
@@ -129,13 +129,13 @@ public class PlanScreen extends Screen {
         }
 
         guiGraphics.disableScissor();
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
         
         // Render JEI Overlays (Tooltips) and hitboxes
-        guiGraphics.pose().pushPose();
+        guiGraphics.pose().pushMatrix();
         guiGraphics.enableScissor(sidebarWidth, 0, this.width, this.height);
-        guiGraphics.pose().translate(panX, panY, 400); // High Z for overlays
-        guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
+        guiGraphics.pose().translate((float) panX, (float) panY); // High Z for overlays
+        guiGraphics.pose().scale((float) zoom, (float) zoom);
         
         if (!plans.isEmpty()) {
             try {
@@ -146,7 +146,7 @@ public class PlanScreen extends Screen {
         }
         
         guiGraphics.disableScissor();
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
 
         // Render Sidebar
         guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
@@ -171,11 +171,11 @@ public class PlanScreen extends Screen {
                     renderIngredientDecorations(guiGraphics, stack, rx, ry, "");
                     
                     String text = stepItem.have + "/" + stepItem.needed;
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(0, 0, 400); // Elevate amount high above items
-                    guiGraphics.pose().scale(0.75f, 0.75f, 1f);
+                    guiGraphics.pose().pushMatrix();
+                    guiGraphics.pose().translate(0, 0); // Elevate amount high above items
+                    guiGraphics.pose().scale(0.75f, 0.75f);
                     guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
-                    guiGraphics.pose().popPose();
+                    guiGraphics.pose().popMatrix();
                     
                     rx += 40;
                     if (rx > sidebarWidth - 40) {
@@ -260,17 +260,17 @@ public class PlanScreen extends Screen {
         int catX = x - catWidth - 2;
         int recX = x + 2;
         
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400); // Ensure boxes render above everything including items
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(0, 0); // Ensure boxes render above everything including items
         guiGraphics.fill(catX, dropY, catX + catWidth, dropY + 12, 0xFF555555);
         guiGraphics.fill(recX, dropY, recX + recWidth, dropY + 12, 0xFF555555);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
 
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 401); // Ensure text renders above boxes
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(0, 0); // Ensure text renders above boxes
         guiGraphics.drawString(this.font, node.getCategoryName(), catX + 5, dropY + 2, 0xFFFFFF);
         guiGraphics.drawString(this.font, recName, recX + 5, dropY + 2, 0xFFFFFF);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
         
         int nextY = dropY + 16;
         
@@ -280,23 +280,23 @@ public class PlanScreen extends Screen {
             int drawX = x - (drawable.getRect().getWidth() / 2);
             drawable.setPosition(drawX, nextY);
             
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0, 0, 2); // Ensure it renders above background
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().translate(0, 0); // Ensure it renders above background
             // Draw a grey background panel for the JEI recipe since JEI 1.21 doesn't draw it automatically
             guiGraphics.fill(drawX - 5, nextY - 5, drawX + drawable.getRect().getWidth() + 5, nextY + drawable.getRect().getHeight() + 5, 0xFFC6C6C6);
             
             // Draw a dark border
             guiGraphics.renderOutline(drawX - 5, nextY - 5, drawable.getRect().getWidth() + 10, drawable.getRect().getHeight() + 10, 0xFF555555);
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().popMatrix();
             
             // Adjust mouse coordinates to match zoom/pan for JEI internal checks
             int localMouseX = (int)((mouseX - panX) / zoom);
             int localMouseY = (int)((mouseY - panY) / zoom);
             
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0, 0, 10);
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().translate(0, 0);
             drawable.drawRecipe(guiGraphics, localMouseX, localMouseY);
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().popMatrix();
             
             nextY += drawable.getRect().getHeight() + 15;
         } else {
@@ -323,12 +323,12 @@ public class PlanScreen extends Screen {
 
                 // Orthogonal lines
                 int midY = nextY + 15;
-                guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(0, 0, 5); // ensure lines are above background
+                guiGraphics.pose().pushMatrix();
+                guiGraphics.pose().translate(0, 0); // ensure lines are above background
                 guiGraphics.fill(x, nextY, x + 2, midY, 0xFF555555);
                 guiGraphics.fill(Math.min(x, childX), midY, Math.max(x, childX) + 2, midY + 2, 0xFF555555);
                 guiGraphics.fill(childX, midY, childX + 2, childY, 0xFF555555);
-                guiGraphics.pose().popPose();
+                guiGraphics.pose().popMatrix();
 
                 drawNodeTree(guiGraphics, children.get(i), childX, childY, mouseX, mouseY);
 
@@ -567,8 +567,8 @@ public class PlanScreen extends Screen {
         int width = 250;
         int height = currentDropdownOptions.size() * rowHeight;
         
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 800); // Very high Z
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(0, 0); // Very high Z
         
         guiGraphics.fill(dropdownX, dropdownY, dropdownX + width, dropdownY + height, 0xEE111111);
         guiGraphics.renderOutline(dropdownX, dropdownY, width, height, 0xFFAAAAAA);
@@ -593,7 +593,7 @@ public class PlanScreen extends Screen {
             cy += rowHeight;
         }
         
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
     }
 
     @Override
@@ -635,18 +635,18 @@ public class PlanScreen extends Screen {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0, 0, 150); // Ensure items render above background
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().translate(0, 0); // Ensure items render above background
             renderer.render(guiGraphics, typedIng.getIngredient(), x, y);
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().popMatrix();
         }
     }
 
     private void renderIngredientDecorations(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y, String text) {
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400); // Elevate above items
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(0, 0); // Elevate above items
         guiGraphics.drawString(this.font, text, x + 17 - this.font.width(text), y + 9, 16777215, true);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
     }
 
     private void renderIngredientTooltip(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int mouseX, int mouseY) {
@@ -654,7 +654,7 @@ public class PlanScreen extends Screen {
         if (jeiRuntime != null) {
             IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
             List<Component> tooltip = renderer.getTooltip(typedIng.getIngredient(), net.minecraft.world.item.TooltipFlag.Default.NORMAL);
-            guiGraphics.renderTooltip(this.font, tooltip, java.util.Optional.empty(), mouseX, mouseY);
+            guiGraphics.setComponentTooltipForNextFrame(this.font, tooltip, mouseX, mouseY);
         }
     }
 

@@ -45,8 +45,8 @@ public class ShoppingListOverlay {
     
             if (result.steps.isEmpty()) return;
     
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0, 0, 250); // Elevate entire shopping list
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().translate(0, 0); // Elevate entire shopping list
     
             int ry = y;
             guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFAA);
@@ -62,22 +62,22 @@ public class ShoppingListOverlay {
                     int needed = (int) stepItem.needed;
     
                     var renderer = com.craftanyway.jei.CraftAnywayJeiPlugin.getJeiRuntime().getIngredientManager().getIngredientRenderer(stack.getType());
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(x, ry, 0);
+                    guiGraphics.pose().pushMatrix();
+                    guiGraphics.pose().translate(x, ry);
                     ((mezz.jei.api.ingredients.IIngredientRenderer<Object>)renderer).render(guiGraphics, stack.getIngredient());
-                    guiGraphics.pose().popPose();
+                    guiGraphics.pose().popMatrix();
     
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(0, 0, 250); // Elevate text above items
+                    guiGraphics.pose().pushMatrix();
+                    guiGraphics.pose().translate(0, 0); // Elevate text above items
                     int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
                     guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
-                    guiGraphics.pose().popPose();
+                    guiGraphics.pose().popMatrix();
                     ry += 20;
                 }
                 ry += 5;
             }
             
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().popMatrix();
         } catch (Exception e) {
             // Ignore exception to prevent silent overlay crash
         }

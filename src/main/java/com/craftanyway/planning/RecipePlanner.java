@@ -64,6 +64,9 @@ public class RecipePlanner {
         return "";
     }
 
+    
+
+
     public static void plan(ITypedIngredient<?> target, long targetAmount) {
         if (target == null) return;
         
