@@ -154,7 +154,7 @@ public class PlanScreen extends Screen {
         guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
         guiGraphics.nextStratum();
         
-        guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFF);
+        guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFFFF);
         guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
         
         if (!plans.isEmpty()) {
@@ -163,7 +163,7 @@ public class PlanScreen extends Screen {
             int ry = 70;
             
             for (CraftingPlan.CraftingStep step : result.steps) {
-                guiGraphics.drawString(this.font, "Step " + step.stepNumber + ":", 10, ry, 0xAAAAAA);
+                guiGraphics.drawString(this.font, "Step " + step.stepNumber + ":", 10, ry, 0xFFAAAAAA);
                 ry += 15;
                 int rx = 10;
                 
@@ -176,7 +176,7 @@ public class PlanScreen extends Screen {
                     guiGraphics.pose().pushMatrix();
                     guiGraphics.pose().translate(0, 0); // Elevate amount high above items
                     guiGraphics.pose().scale(0.75f, 0.75f);
-                    guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
+                    guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xFFAAAAAA);
                     guiGraphics.pose().popMatrix();
                     
                     rx += 40;
@@ -190,7 +190,7 @@ public class PlanScreen extends Screen {
         }
         
         // Render Header
-        guiGraphics.drawCenteredString(this.font, "Crafting Planner", this.width / 2 + sidebarWidth / 2, 10, 0xFFFFFF);
+        guiGraphics.drawCenteredString(this.font, "Crafting Planner", this.width / 2 + sidebarWidth / 2, 10, 0xFFFFFFFF);
         guiGraphics.drawString(this.font, "Pathbuilder:", sidebarWidth + 10, 30, 0xFFFFFFFF);
         
         // Render Dropdown if active (drawn last to be on top)
@@ -237,7 +237,7 @@ public class PlanScreen extends Screen {
         if (node == null) return;
 
         // Draw Name
-        guiGraphics.drawCenteredString(this.font, getIngredientName(node.getOutput()), x, y, 0xFFFFFF);
+        guiGraphics.drawCenteredString(this.font, getIngredientName(node.getOutput()), x, y, 0xFFFFFFFF);
         
         // Draw Icon and Qty
         renderIngredient(guiGraphics, node.getOutput(), x - 8, y + 12);
@@ -271,8 +271,8 @@ public class PlanScreen extends Screen {
 
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Ensure text renders above boxes
-        guiGraphics.drawString(this.font, node.getCategoryName(), catX + 5, dropY + 2, 0xFFFFFF);
-        guiGraphics.drawString(this.font, recName, recX + 5, dropY + 2, 0xFFFFFF);
+        guiGraphics.drawString(this.font, node.getCategoryName(), catX + 5, dropY + 2, 0xFFFFFFFF);
+        guiGraphics.drawString(this.font, recName, recX + 5, dropY + 2, 0xFFFFFFFF);
         guiGraphics.pose().popMatrix();
         
         int nextY = dropY + 16;
@@ -595,7 +595,7 @@ public class PlanScreen extends Screen {
                 text = "Raw";
             }
             
-            guiGraphics.drawString(this.font, truncate(text, 35), dropdownX + 5, cy + 4, hovered ? 0xFFFFAA : 0xFFFFFF);
+            guiGraphics.drawString(this.font, truncate(text, 35), dropdownX + 5, cy + 4, hovered ? 0xFFFFFFAA : 0xFFFFFFFF);
             cy += rowHeight;
         }
         
@@ -651,7 +651,7 @@ public class PlanScreen extends Screen {
     private void renderIngredientDecorations(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y, String text) {
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Elevate above items
-        guiGraphics.drawString(this.font, text, x + 17 - this.font.width(text), y + 9, 16777215, true);
+        guiGraphics.drawString(this.font, text, x + 17 - this.font.width(text), y + 9, 0xFFFFFFFF, true);
         guiGraphics.pose().popMatrix();
     }
 
