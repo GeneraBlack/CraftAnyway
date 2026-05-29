@@ -165,6 +165,7 @@ public class PlanScreen extends Screen {
                     
                     String text = stepItem.have + "/" + stepItem.needed;
                     guiGraphics.pose().pushPose();
+                    guiGraphics.pose().translate(0, 0, 200); // Elevate amount above items
                     guiGraphics.pose().scale(0.75f, 0.75f, 1f);
                     guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
                     guiGraphics.pose().popPose();
@@ -266,17 +267,20 @@ public class PlanScreen extends Screen {
         
         int nextY = dropY + 16;
         
-        // Inline JEI Render
+        // Draw JEI background manually
         IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
         if (drawable != null) {
             int drawX = x - (drawable.getRect().getWidth() / 2);
             drawable.setPosition(drawX, nextY);
             
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 2); // Ensure it renders above background
             // Draw a grey background panel for the JEI recipe since JEI 1.21 doesn't draw it automatically
             guiGraphics.fill(drawX - 5, nextY - 5, drawX + drawable.getRect().getWidth() + 5, nextY + drawable.getRect().getHeight() + 5, 0xFFC6C6C6);
             
             // Draw a dark border
             guiGraphics.renderOutline(drawX - 5, nextY - 5, drawable.getRect().getWidth() + 10, drawable.getRect().getHeight() + 10, 0xFF555555);
+            guiGraphics.pose().popPose();
             
             // Adjust mouse coordinates to match zoom/pan for JEI internal checks
             int localMouseX = (int)((mouseX - panX) / zoom);
@@ -624,7 +628,10 @@ public class PlanScreen extends Screen {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 150); // Ensure items render above background
             renderer.render(guiGraphics, typedIng.getIngredient(), x, y);
+            guiGraphics.pose().popPose();
         }
     }
 
