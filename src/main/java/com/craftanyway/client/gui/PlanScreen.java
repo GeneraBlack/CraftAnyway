@@ -146,14 +146,11 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().popPose();
 
         // Render Sidebar
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 1); // Elevate above background
         guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
         guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
         
         guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFF);
         guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
-        guiGraphics.pose().popPose();
         
         if (!plans.isEmpty()) {
             CraftingPlan.PlanResult result = plans.get(0).calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
