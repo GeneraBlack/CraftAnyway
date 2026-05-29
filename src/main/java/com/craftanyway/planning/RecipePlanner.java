@@ -116,6 +116,9 @@ public class RecipePlanner {
         IFocusGroup focusGroup = jeiRuntime.getJeiHelpers().getFocusFactory().createFocusGroup(focuses);
 
         for (IRecipeCategory<?> category : recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList()) {
+            String catTitle = category.getTitle().getString();
+            if (catTitle.equals("Item Tags") || catTitle.equals("Block Tags")) continue;
+            
             RecipeType<?> type = category.getRecipeType();
 
             List<?> recipes = recipeManager.createRecipeLookup(type).limitFocus(focuses).get().toList();

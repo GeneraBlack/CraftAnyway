@@ -146,14 +146,18 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().popPose();
 
         // Render Sidebar
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 1); // Elevate above background
         guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
         guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
         
         guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFF);
         guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
+        guiGraphics.pose().popPose();
         
         if (!plans.isEmpty()) {
             CraftingPlan.PlanResult result = plans.get(0).calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
+
             int ry = 70;
             
             for (CraftingPlan.CraftingStep step : result.steps) {
@@ -192,7 +196,10 @@ public class PlanScreen extends Screen {
             renderDropdown(guiGraphics, mouseX, mouseY);
         }
         
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 10);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+        guiGraphics.pose().popPose();
     }
     
     private <T> IRecipeLayoutDrawable<T> getJeiDrawable(CraftingPlan.PlanNode node) {
