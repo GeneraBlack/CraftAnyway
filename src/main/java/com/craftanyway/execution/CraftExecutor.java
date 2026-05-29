@@ -15,7 +15,9 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, bus = EventBusSubscriber.Bus.GAME)
+import net.neoforged.api.distmarker.Dist;
+
+@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
 public class CraftExecutor {
 
     private static boolean isExecuting = false;

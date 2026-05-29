@@ -13,10 +13,9 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
-import java.util.HashMap;
-import java.util.Map;
+import net.neoforged.api.distmarker.Dist;
 
-@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, bus = EventBusSubscriber.Bus.GAME)
+@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
 public class ShoppingListOverlay {
 
     @SubscribeEvent
@@ -45,6 +44,9 @@ public class ShoppingListOverlay {
 
         if (result.steps.isEmpty()) return;
 
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 250); // Elevate entire shopping list
+
         int ry = y;
         guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFAA);
         ry += 15;
@@ -63,7 +65,6 @@ public class ShoppingListOverlay {
                 guiGraphics.pose().translate(x, ry, 0);
                 ((mezz.jei.api.ingredients.IIngredientRenderer<Object>)renderer).render(guiGraphics, stack.getIngredient());
                 guiGraphics.pose().popPose();
-                // no simple decorations for typed ingredients
 
                 int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
                 guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
@@ -71,6 +72,7 @@ public class ShoppingListOverlay {
             }
             ry += 5;
         }
+        guiGraphics.pose().popPose();
     }
 
     private static int gcd(int a, int b) {
