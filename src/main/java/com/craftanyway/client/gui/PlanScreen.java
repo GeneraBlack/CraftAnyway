@@ -40,6 +40,7 @@ public class PlanScreen extends Screen {
     // Dropdown state
     private CraftingPlan.PlanNode activeDropdownNode = null;
     private boolean isCategoryDropdown = false;
+    private boolean isVariantDropdown = false;
     private int dropdownX = 0;
     private int dropdownY = 0;
     private List<RecipePlanner.RecipeOption> currentDropdownOptions = new ArrayList<>();
@@ -241,7 +242,11 @@ public class PlanScreen extends Screen {
         
         // Draw Icon and Qty
         renderIngredient(guiGraphics, node.getOutput(), x - 8, y + 12);
-        renderIngredientDecorations(guiGraphics, node.getOutput(), x - 8, y + 12, String.valueOf(node.getAmount()));
+        String qtyText = String.valueOf(node.getAmount());
+        if (node.getTagOptions() != null && node.getTagOptions().length > 1) {
+            qtyText += " *";
+        }
+        renderIngredientDecorations(guiGraphics, node.getOutput(), x - 8, y + 12, qtyText);
         
         // Category Dropdown Box
         int catTextWidth = this.font.width(node.getCategoryName());
@@ -446,7 +451,11 @@ public class PlanScreen extends Screen {
                 int index = (int)((mouseY - dropdownY) / rowHeight);
                 if (index >= 0 && index < currentDropdownOptions.size()) {
                     RecipePlanner.RecipeOption opt = currentDropdownOptions.get(index);
-                    RecipePlanner.setPreference(RecipePlanner.getUniqueId(activeDropdownNode.getOutput()), opt.recipeId);
+                    if (isVariantDropdown) {
+                        RecipePlanner.setTagPreference(activeDropdownNode.getTagSignature(), opt.recipeId);
+                    } else {
+                        RecipePlanner.setPreference(RecipePlanner.getUniqueId(activeDropdownNode.getOutput()), opt.recipeId);
+                    }
                     refreshPlan();
                     return true;
                 }
@@ -508,6 +517,14 @@ public class PlanScreen extends Screen {
             return true;
         }
         
+        // Check Ingredient Click (for Variant Picker)
+        if (node.getTagOptions() != null && node.getTagOptions().length > 1) {
+            if (worldX >= x - 8 && worldX <= x + 8 && worldY >= y + 12 && worldY <= y + 28) {
+                openVariantDropdown(node, (int)(x * zoom + panX), (int)((y + 30) * zoom + panY));
+                return true;
+            }
+        }
+        
         // Inline JEI interaction?
         IRecipeLayoutDrawable<?> drawable = getJeiDrawable(node);
         int nextY = dropY + 16;
@@ -538,9 +555,26 @@ public class PlanScreen extends Screen {
         return false;
     }
     
+    
+    private void openVariantDropdown(CraftingPlan.PlanNode node, int x, int y) {
+        this.activeDropdownNode = node;
+        this.isVariantDropdown = true;
+        this.isCategoryDropdown = false;
+        this.dropdownX = x;
+        this.dropdownY = y;
+        
+        this.currentDropdownOptions.clear();
+        if (node.getTagOptions() != null) {
+            for (mezz.jei.api.ingredients.ITypedIngredient<?> ti : node.getTagOptions()) {
+                this.currentDropdownOptions.add(new com.craftanyway.planning.RecipePlanner.RecipeOption(com.craftanyway.planning.RecipePlanner.getUniqueId(ti), getIngredientName(ti), 0, new java.util.ArrayList<>()));
+            }
+        }
+    }
+
     private void openDropdown(CraftingPlan.PlanNode node, boolean isCategory, int x, int y) {
         this.activeDropdownNode = node;
         this.isCategoryDropdown = isCategory;
+        this.isVariantDropdown = false;
         this.dropdownX = x;
         this.dropdownY = y;
         
@@ -587,12 +621,16 @@ public class PlanScreen extends Screen {
             }
             
             String text = isCategoryDropdown ? opt.name : opt.recipeId;
-            if (!isCategoryDropdown && text.contains(":")) {
-                String[] parts = text.split(":");
-                text = parts[parts.length - 1];
-            }
-            if (!isCategoryDropdown && opt.name.equals("Raw")) {
-                text = "Raw";
+            if (isVariantDropdown) {
+                text = opt.name;
+            } else {
+                if (!isCategoryDropdown && text.contains(":")) {
+                    String[] parts = text.split(":");
+                    text = parts[parts.length - 1];
+                }
+                if (!isCategoryDropdown && opt.name.equals("Raw")) {
+                    text = "Raw";
+                }
             }
             
             guiGraphics.drawString(this.font, truncate(text, 35), dropdownX + 5, cy + 4, hovered ? 0xFFFFFFAA : 0xFFFFFFFF);

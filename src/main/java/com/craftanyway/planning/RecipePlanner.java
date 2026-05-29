@@ -30,6 +30,11 @@ public class RecipePlanner {
 
     private static CraftingPlan currentPlan = null;
     private static final Map<String, String> itemPreferences = new HashMap<>();
+    private static final Map<String, String> tagPreferences = new HashMap<>();
+
+    public static void setTagPreference(String tagSignature, String uniqueId) {
+        tagPreferences.put(tagSignature, uniqueId);
+    }
 
     public static void setPreference(String itemKey, String recipeId) {
         itemPreferences.put(itemKey, recipeId);
@@ -170,7 +175,7 @@ public class RecipePlanner {
         String targetKey = getUniqueId(target);
         String uid = targetKey;
 
-        Map<String, String> tagPreferences = new HashMap<>();
+        // Use static tagPreferences
         String pref = itemPreferences.get(targetKey);
 
         if ("craftanyway:raw".equals(pref)) {
