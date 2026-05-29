@@ -15,7 +15,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 
 import net.neoforged.api.distmarker.Dist;
 
-@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
+@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, value = Dist.CLIENT)
 public class ShoppingListOverlay {
 
     @SubscribeEvent

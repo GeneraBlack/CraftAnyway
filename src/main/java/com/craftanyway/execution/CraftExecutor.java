@@ -17,7 +17,7 @@ import java.util.List;
 
 import net.neoforged.api.distmarker.Dist;
 
-@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
+@EventBusSubscriber(modid = com.craftanyway.CraftAnyway.MODID, value = Dist.CLIENT)
 public class CraftExecutor {
 
     private static boolean isExecuting = false;
@@ -87,20 +87,7 @@ public class CraftExecutor {
         }
 
         // 4. Calculate yield and leftovers for intermediate craft
-        int recipeYield = 1;
-        if (node.getRecipe() != null) {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.level != null) {
-                try {
-                    ItemStack result = node.getRecipe().getResultItem(mc.level.registryAccess());
-                    if (!result.isEmpty()) {
-                        recipeYield = result.getCount();
-                    }
-                } catch (Exception e) {
-                    // fallback
-                }
-            }
-        }
+        int recipeYield = (int) node.getRecipeYield();
         if (recipeYield <= 0) recipeYield = 1;
 
         int craftsNeeded = (int) Math.ceil((double) remainingNeeded / recipeYield);
@@ -151,7 +138,8 @@ public class CraftExecutor {
         } else if (state == 1) {
             // Move items to grid
             if (currentNode.isCraftingTable() && currentNode.getRecipe() instanceof CraftingRecipe recipe) {
-                List<Ingredient> ingredients = recipe.getIngredients();
+                var placement = recipe.placementInfo();
+                List<Ingredient> ingredients = placement.ingredients();
                 
                 if (currentIngredientIndex < ingredients.size()) {
                     Ingredient ing = ingredients.get(currentIngredientIndex);

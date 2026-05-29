@@ -65,11 +65,11 @@ dependencies {
     compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
     runtimeOnly "mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}"
     
-    compileOnly "mekanism:Mekanism:${mekanism_version}:api"
-    runtimeOnly "mekanism:Mekanism:${mekanism_version}"
-    runtimeOnly "mekanism:Mekanism:${mekanism_version}:additions"
-    runtimeOnly "mekanism:Mekanism:${mekanism_version}:generators"
-    runtimeOnly "mekanism:Mekanism:${mekanism_version}:tools"
+    // compileOnly "mekanism:Mekanism:${mekanism_version}:api"
+    // runtimeOnly "mekanism:Mekanism:${mekanism_version}"
+    // runtimeOnly "mekanism:Mekanism:${mekanism_version}:additions"
+    // runtimeOnly "mekanism:Mekanism:${mekanism_version}:generators"
+    // runtimeOnly "mekanism:Mekanism:${mekanism_version}:tools"
 }
 
 tasks.withType(ProcessResources).configureEach {
@@ -93,3 +93,6 @@ tasks.withType(ProcessResources).configureEach {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+tasks.register('printRecipe') { doLast { def cl = sourceSets.main.compileClasspath; def ucl = new URLClassLoader(cl.collect { it.toURI().toURL() } as URL[], null); def clazz = ucl.loadClass('net.minecraft.world.item.crafting.Recipe'); clazz.getMethods().each { println it } } }
+tasks.register('printRecipeFix') { doLast { def cl = sourceSets.main.compileClasspath; def ucl = new URLClassLoader(cl.collect { it.toURI().toURL() } as URL[], (ClassLoader) null); def clazz = ucl.loadClass('net.minecraft.world.item.crafting.Recipe'); clazz.getMethods().each { println it } } }
+tasks.register('printJEIHelper') { doLast { def cl = sourceSets.main.compileClasspath; def ucl = new URLClassLoader(cl.collect { it.toURI().toURL() } as URL[], (ClassLoader) null); def clazz = ucl.loadClass('mezz.jei.api.ingredients.IIngredientHelper'); clazz.getMethods().each { println it.getName() } } }

@@ -59,7 +59,7 @@ public class RecipePlanner {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientHelper<T> helper = jeiRuntime.getIngredientManager().getIngredientHelper(typedIng.getType());
-            return helper.getUniqueId(typedIng.getIngredient(), mezz.jei.api.ingredients.subtypes.UidContext.Ingredient);
+            return helper.getUid(typedIng.getIngredient(), mezz.jei.api.ingredients.subtypes.UidContext.Recipe).toString();
         }
         return "";
     }
@@ -119,7 +119,7 @@ public class RecipePlanner {
             String catTitle = category.getTitle().getString();
             if (catTitle.equals("Item Tags") || catTitle.equals("Block Tags")) continue;
             
-            RecipeType<?> type = category.getRecipeType();
+            var type = category.getRecipeType();
 
             List<?> recipes = recipeManager.createRecipeLookup(type).limitFocus(focuses).get().toList();
             for (Object recipeObj : recipes) {
@@ -187,7 +187,7 @@ public class RecipePlanner {
         IFocusGroup focusGroup = jeiRuntime.getJeiHelpers().getFocusFactory().createFocusGroup(focuses);
 
         for (IRecipeCategory<?> category : recipeManager.createRecipeCategoryLookup().limitFocus(focuses).get().toList()) {
-            RecipeType<?> type = category.getRecipeType();
+            var type = category.getRecipeType();
 
             List<?> recipes = recipeManager.createRecipeLookup(type).limitFocus(focuses).get().toList();
             for (Object recipeObj : recipes) {
