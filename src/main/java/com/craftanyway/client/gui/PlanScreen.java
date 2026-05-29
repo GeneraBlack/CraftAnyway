@@ -7,7 +7,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -102,8 +102,7 @@ public class PlanScreen extends Screen {
         this.init();
     }
 
-    @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    private void customRenderBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Dark grey background as requested in mockup
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0);
@@ -113,8 +112,8 @@ public class PlanScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+        this.customRenderBackground(guiGraphics, mouseX, mouseY, partialTick);
         
         // Split screen: 25% sidebar, 75% pathbuilder
         int sidebarWidth = Math.max(200, this.width / 4);
@@ -157,8 +156,8 @@ public class PlanScreen extends Screen {
         guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
         guiGraphics.nextStratum();
         
-        guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFFFF);
-        guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
+        guiGraphics.textRenderer().accept(20, 26, net.minecraft.network.chat.Component.literal("Qty:").withStyle(s -> s.withColor(0xFFFFFFFF)));
+        guiGraphics.textRenderer().accept(10, 50, net.minecraft.network.chat.Component.literal("Step-by-Step Breakdown:").withStyle(s -> s.withColor(0xFFFFFFFF)));
         
         if (!plans.isEmpty()) {
             CraftingPlan.PlanResult result = plans.get(0).calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
@@ -166,7 +165,7 @@ public class PlanScreen extends Screen {
             int ry = 70;
             
             for (CraftingPlan.CraftingStep step : result.steps) {
-                guiGraphics.drawString(this.font, "Step " + step.stepNumber + ":", 10, ry, 0xFFAAAAAA);
+                guiGraphics.textRenderer().accept(10, ry, net.minecraft.network.chat.Component.literal("Step " + step.stepNumber + ":").withStyle(s -> s.withColor(0xFFAAAAAA)));
                 ry += 15;
                 int rx = 10;
                 
@@ -179,7 +178,7 @@ public class PlanScreen extends Screen {
                     guiGraphics.pose().pushMatrix();
                     guiGraphics.pose().translate(0, 0); // Elevate amount high above items
                     guiGraphics.pose().scale(0.75f, 0.75f);
-                    guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xFFAAAAAA);
+                    guiGraphics.textRenderer().accept((int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), net.minecraft.network.chat.Component.literal(String.valueOf(text)).withStyle(s -> s.withColor(0xFFAAAAAA)));
                     guiGraphics.pose().popMatrix();
                     
                     rx += 40;
@@ -193,15 +192,15 @@ public class PlanScreen extends Screen {
         }
         
         // Render Header
-        guiGraphics.drawCenteredString(this.font, "Crafting Planner", this.width / 2 + sidebarWidth / 2, 10, 0xFFFFFFFF);
-        guiGraphics.drawString(this.font, "Pathbuilder:", sidebarWidth + 10, 30, 0xFFFFFFFF);
+        guiGraphics.textRenderer().accept(net.minecraft.client.gui.TextAlignment.CENTER, this.width / 2 + sidebarWidth / 2, 10, net.minecraft.network.chat.Component.literal("Crafting Planner").withStyle(s -> s.withColor(0xFFFFFFFF)));
+        guiGraphics.textRenderer().accept(sidebarWidth + 10, 30, net.minecraft.network.chat.Component.literal("Pathbuilder:").withStyle(s -> s.withColor(0xFFFFFFFF)));
         
         // Render Dropdown if active (drawn last to be on top)
         if (activeDropdownNode != null) {
             renderDropdown(guiGraphics, mouseX, mouseY);
         }
         
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
     }
     
     private <T> IRecipeLayoutDrawable<T> getJeiDrawable(CraftingPlan.PlanNode node) {
@@ -236,11 +235,11 @@ public class PlanScreen extends Screen {
         return null;
     }
 
-    private void drawNodeTree(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y, int mouseX, int mouseY) {
+    private void drawNodeTree(GuiGraphicsExtractor guiGraphics, CraftingPlan.PlanNode node, int x, int y, int mouseX, int mouseY) {
         if (node == null) return;
 
         // Draw Name
-        guiGraphics.drawCenteredString(this.font, getIngredientName(node.getOutput()), x, y, 0xFFFFFFFF);
+        guiGraphics.textRenderer().accept(net.minecraft.client.gui.TextAlignment.CENTER, x, y, net.minecraft.network.chat.Component.literal(String.valueOf(getIngredientName(node.getOutput()))).withStyle(s -> s.withColor(0xFFFFFFFF)));
         
         // Draw Icon and Qty
         renderIngredient(guiGraphics, node.getOutput(), x - 8, y + 12);
@@ -278,8 +277,8 @@ public class PlanScreen extends Screen {
 
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Ensure text renders above boxes
-        guiGraphics.drawString(this.font, node.getCategoryName(), catX + 5, dropY + 2, 0xFFFFFFFF);
-        guiGraphics.drawString(this.font, recName, recX + 5, dropY + 2, 0xFFFFFFFF);
+        guiGraphics.textRenderer().accept(catX + 5, dropY + 2, net.minecraft.network.chat.Component.literal(String.valueOf(node.getCategoryName())).withStyle(s -> s.withColor(0xFFFFFFFF)));
+        guiGraphics.textRenderer().accept(recX + 5, dropY + 2, net.minecraft.network.chat.Component.literal(String.valueOf(recName)).withStyle(s -> s.withColor(0xFFFFFFFF)));
         guiGraphics.pose().popMatrix();
         
         int nextY = dropY + 16;
@@ -296,7 +295,10 @@ public class PlanScreen extends Screen {
             guiGraphics.fill(drawX - 5, nextY - 5, drawX + drawable.getRect().getWidth() + 5, nextY + drawable.getRect().getHeight() + 5, 0xFFC6C6C6);
             
             // Draw a dark border
-            guiGraphics.renderOutline(drawX - 5, nextY - 5, drawable.getRect().getWidth() + 10, drawable.getRect().getHeight() + 10, 0xFF555555);
+            guiGraphics.fill(drawX - 5, nextY - 5, drawX - 5 + drawable.getRect().getWidth() + 10, nextY - 5 + 1, 0xFF555555);
+        guiGraphics.fill(drawX - 5, nextY - 5 + drawable.getRect().getHeight() + 10 - 1, drawX - 5 + drawable.getRect().getWidth() + 10, nextY - 5 + drawable.getRect().getHeight() + 10, 0xFF555555);
+        guiGraphics.fill(drawX - 5, nextY - 5 + 1, drawX - 5 + 1, nextY - 5 + drawable.getRect().getHeight() + 10 - 1, 0xFF555555);
+        guiGraphics.fill(drawX - 5 + drawable.getRect().getWidth() + 10 - 1, nextY - 5 + 1, drawX - 5 + drawable.getRect().getWidth() + 10, nextY - 5 + drawable.getRect().getHeight() + 10 - 1, 0xFF555555);
             guiGraphics.pose().popMatrix();
             guiGraphics.nextStratum();
             
@@ -349,7 +351,7 @@ public class PlanScreen extends Screen {
         }
     }
     
-    private void drawNodeOverlays(GuiGraphics guiGraphics, CraftingPlan.PlanNode node, int x, int y, int mouseX, int mouseY) {
+    private void drawNodeOverlays(GuiGraphicsExtractor guiGraphics, CraftingPlan.PlanNode node, int x, int y, int mouseX, int mouseY) {
         if (node == null) return;
         
         // Local mouse for JEI
@@ -607,7 +609,7 @@ public class PlanScreen extends Screen {
         }
     }
     
-    private void renderDropdown(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    private void renderDropdown(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         int rowHeight = 15;
         int width = 250;
         int height = currentDropdownOptions.size() * rowHeight;
@@ -616,7 +618,10 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().translate(0, 0); // Very high Z
         
         guiGraphics.fill(dropdownX, dropdownY, dropdownX + width, dropdownY + height, 0xEE111111);
-        guiGraphics.renderOutline(dropdownX, dropdownY, width, height, 0xFFAAAAAA);
+        guiGraphics.fill(dropdownX, dropdownY, dropdownX + width, dropdownY + 1, 0xFFAAAAAA);
+        guiGraphics.fill(dropdownX, dropdownY + height - 1, dropdownX + width, dropdownY + height, 0xFFAAAAAA);
+        guiGraphics.fill(dropdownX, dropdownY + 1, dropdownX + 1, dropdownY + height - 1, 0xFFAAAAAA);
+        guiGraphics.fill(dropdownX + width - 1, dropdownY + 1, dropdownX + width, dropdownY + height - 1, 0xFFAAAAAA);
         guiGraphics.nextStratum();
         
         int cy = dropdownY;
@@ -639,7 +644,7 @@ public class PlanScreen extends Screen {
                 }
             }
             
-            guiGraphics.drawString(this.font, truncate(text, 35), dropdownX + 5, cy + 4, hovered ? 0xFFFFFFAA : 0xFFFFFFFF);
+            guiGraphics.textRenderer().accept(dropdownX + 5, cy + 4, net.minecraft.network.chat.Component.literal(String.valueOf(truncate(text, 35))).withStyle(s -> s.withColor(hovered ? 0xFFFFFFAA : 0xFFFFFFFF)));
             cy += rowHeight;
         }
         
@@ -681,7 +686,7 @@ public class PlanScreen extends Screen {
         return "Unknown";
     }
 
-    private void renderIngredient(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y) {
+    private void renderIngredient(GuiGraphicsExtractor guiGraphics, ITypedIngredient<?> typedIng, int x, int y) {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());
@@ -692,14 +697,14 @@ public class PlanScreen extends Screen {
         }
     }
 
-    private void renderIngredientDecorations(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y, String text) {
+    private void renderIngredientDecorations(GuiGraphicsExtractor guiGraphics, ITypedIngredient<?> typedIng, int x, int y, String text) {
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Elevate above items
-        guiGraphics.drawString(this.font, text, x + 17 - this.font.width(text), y + 9, 0xFFFFFFFF, true);
+        guiGraphics.textRenderer().accept(x + 17 - this.font.width(text), y + 9, net.minecraft.network.chat.Component.literal(String.valueOf(text)).withStyle(s -> s.withColor(0xFFFFFFFF)));
         guiGraphics.pose().popMatrix();
     }
 
-    private void renderIngredientTooltip(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int mouseX, int mouseY) {
+    private void renderIngredientTooltip(GuiGraphicsExtractor guiGraphics, ITypedIngredient<?> typedIng, int mouseX, int mouseY) {
         var jeiRuntime = CraftAnywayJeiPlugin.getJeiRuntime();
         if (jeiRuntime != null) {
             IIngredientRenderer renderer = jeiRuntime.getIngredientManager().getIngredientRenderer(typedIng.getType());

@@ -60,7 +60,7 @@ public class Keybinds {
                     return true;
                 } else {
                     if (mc.player != null) {
-                        mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("No craftable recipe found for " + ingredientUnderMouse.getHoverName().getString()), false);
+                        mc.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("No craftable recipe found for " + ingredientUnderMouse.getHoverName().getString()));
                     }
                 }
             }

@@ -3,7 +3,7 @@ package com.craftanyway.client.gui;
 import com.craftanyway.planning.CraftingPlan;
 import com.craftanyway.planning.RecipePlanner;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -33,7 +33,7 @@ public class ShoppingListOverlay {
         }
     }
 
-    private static void renderShoppingList(GuiGraphics guiGraphics, int x, int y) {
+    private static void renderShoppingList(GuiGraphicsExtractor guiGraphics, int x, int y) {
         try {
             CraftingPlan plan = RecipePlanner.getCurrentPlan();
             if (plan == null) return;
@@ -49,11 +49,11 @@ public class ShoppingListOverlay {
             guiGraphics.pose().translate(0, 0); // Elevate entire shopping list
     
             int ry = y;
-            guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFFFAA);
+            guiGraphics.textRenderer().accept(x, ry, net.minecraft.network.chat.Component.literal("Crafting Steps:").withStyle(s -> s.withColor(0xFFFFFFAA)));
             ry += 15;
     
             for (CraftingPlan.CraftingStep step : result.steps) {
-                guiGraphics.drawString(mc.font, "Step " + step.stepNumber + ":", x, ry, 0xFFAAAAAA);
+                guiGraphics.textRenderer().accept(x, ry, net.minecraft.network.chat.Component.literal("Step " + step.stepNumber + ":").withStyle(s -> s.withColor(0xFFAAAAAA)));
                 ry += 12;
     
                 for (CraftingPlan.StepItem stepItem : step.items.values()) {
@@ -70,7 +70,7 @@ public class ShoppingListOverlay {
                     guiGraphics.pose().pushMatrix();
                     guiGraphics.pose().translate(0, 0); // Elevate text above items
                     int color = have >= needed ? 0xFF55FF55 : 0xFFFFFFFF;
-                    guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
+                    guiGraphics.textRenderer().accept(x + 20, ry + 4, net.minecraft.network.chat.Component.literal(have + "/" + needed).withStyle(s -> s.withColor(color)));
                     guiGraphics.pose().popMatrix();
                     ry += 20;
                 }

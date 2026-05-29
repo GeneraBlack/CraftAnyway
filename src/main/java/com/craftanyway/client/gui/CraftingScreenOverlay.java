@@ -29,7 +29,7 @@ public class CraftingScreenOverlay {
                     CraftExecutor.startExecution(currentPlan, screen);
                 } else {
                     if (Minecraft.getInstance().player != null) {
-                        Minecraft.getInstance().player.displayClientMessage(Component.literal("No plan active! Press P in JEI."), false);
+                        Minecraft.getInstance().player.sendSystemMessage(Component.literal("No plan active! Press P in JEI."));
                     }
                 }
             })

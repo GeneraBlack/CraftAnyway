@@ -17,7 +17,7 @@ base {
     archivesName = mod_id
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 neoForge {
     version = neoforge_version
@@ -111,5 +111,187 @@ tasks.register('dumpEventHandler') {
         } catch (Exception e) {
             e.printStackTrace()
         }
+    }
+}
+tasks.register('findClasses') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def ucl = new URLClassLoader(cl.collect { it.toURI().toURL() } as URL[], (ClassLoader) null)
+        
+        println "--- Searching for GuiGraphics ---"
+        cl.each { file ->
+            if (file.name.endsWith('.jar')) {
+                def zf = new java.util.zip.ZipFile(file)
+                zf.entries().each { e ->
+                    def name = e.name
+                    if (name.contains('GuiGraphics') || name.contains('DrawContext')) {
+                        println name
+                    }
+                    if (name.contains('ClickType') || name.contains('SlotClickType')) {
+                        println name
+                    }
+                }
+            }
+        }
+        
+        println "--- Methods in LocalPlayer ---"
+        try {
+            def clazz = ucl.loadClass('net.minecraft.client.player.LocalPlayer')
+            clazz.getMethods().each { m ->
+                if (m.name.toLowerCase().contains('message') || m.name.toLowerCase().contains('chat')) {
+                    println m.name + " : " + m.getParameterTypes().collect { it.name }
+                }
+            }
+        } catch (Exception e) {}
+    }
+}
+tasks.register('dumpAPI') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath
+        
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def script = new File('DumpAPI.java')
+        script.text = '''
+import java.lang.reflect.*;
+
+public class DumpAPI {
+    public static void main(String[] args) throws Exception {
+        dump("net.minecraft.client.gui.screens.Screen");
+        dump("net.minecraft.world.entity.player.Player");
+        dump("net.minecraft.client.player.LocalPlayer");
+        dump("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen");
+        dump("net.minecraft.client.Minecraft");
+    }
+    static void dump(String name) {
+        System.out.println("--- " + name + " ---");
+        try {
+            Class<?> c = Class.forName(name);
+            for(Method m : c.getMethods()) {
+                if (m.getName().toLowerCase().contains("message") || 
+                    m.getName().toLowerCase().contains("chat") || 
+                    m.getName().toLowerCase().contains("render") ||
+                    m.getName().toLowerCase().contains("click")) {
+                    
+                    System.out.print(m.getName() + "(");
+                    Class<?>[] pTypes = m.getParameterTypes();
+                    for(int i=0;i<pTypes.length;i++) {
+                        System.out.print(pTypes[i].getSimpleName() + (i<pTypes.length-1?", ":""));
+                    }
+                    System.out.println(")");
+                }
+            }
+        } catch(Exception e) {
+            System.out.println("Not found");
+        }
+    }
+}
+'''
+        exec {
+            commandLine j25, '-cp', classpath + File.pathSeparator + '.', 'DumpAPI.java'
+        }
+    }
+}
+tasks.register('javapClasses') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath
+        def javap = j25.replace('java.exe', 'javap.exe')
+        
+        println '--- Screen ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.screens.Screen' }
+        println '--- LocalPlayer ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.player.LocalPlayer' }
+        println '--- AbstractContainerScreen ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.screens.inventory.AbstractContainerScreen' }
+        println '--- ClickType ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.world.inventory.ClickType' ; ignoreExitValue true }
+    }
+}
+tasks.register('javapClasses2') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.getAsFile().getAbsolutePath()
+        def javap = j25.replace('java.exe', 'javap.exe')
+        
+        println '--- Screen ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.screens.Screen' }
+        println '--- LocalPlayer ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.player.LocalPlayer' }
+        println '--- AbstractContainerScreen ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.screens.inventory.AbstractContainerScreen' }
+        println '--- ClickType ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.world.inventory.ClickType' ; ignoreExitValue true }
+    }
+}
+tasks.register('javapClasses3') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.getAsFile().getAbsolutePath()
+        def javap = j25.replace('java.exe', 'javap.exe')
+        
+        println '--- GuiGraphicsExtractor ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.GuiGraphicsExtractor' ; ignoreExitValue true }
+        println '--- ClickAction ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.world.inventory.ClickAction' ; ignoreExitValue true }
+        println '--- SlotClickType ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.world.inventory.SlotClickType' ; ignoreExitValue true }
+        println '--- ClickType ---'
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.world.inventory.ClickType' ; ignoreExitValue true }
+    }
+}
+tasks.register('findClickType') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        cl.each { file ->
+            if (file.name.endsWith('.jar')) {
+                def zf = new java.util.zip.ZipFile(file)
+                zf.entries().each { e ->
+                    def name = e.name
+                    if (name.contains('net/minecraft/world/inventory') && name.contains('Click')) {
+                        println name
+                    }
+                }
+            }
+        }
+    }
+}
+tasks.register('dumpGameMode') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.getAsFile().getAbsolutePath()
+        def javap = j25.replace('java.exe', 'javap.exe')
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.multiplayer.MultiPlayerGameMode' }
+    }
+}
+tasks.register('dumpContainerInput') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.getAsFile().getAbsolutePath()
+        def javap = j25.replace('java.exe', 'javap.exe')
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.world.inventory.ContainerInput' }
+    }
+}
+tasks.register('dumpTextMethods') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.getAsFile().getAbsolutePath()
+        def javap = j25.replace('java.exe', 'javap.exe')
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.GuiGraphicsExtractor' ; ignoreExitValue true }
+    }
+}
+tasks.register('dumpActiveText') {
+    doLast {
+        def cl = sourceSets.main.compileClasspath
+        def classpath = cl.collect { it.getAbsolutePath() }.join(File.pathSeparator)
+        def j25 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.getAsFile().getAbsolutePath()
+        def javap = j25.replace('java.exe', 'javap.exe')
+        exec { commandLine javap, '-cp', classpath, '-public', 'net.minecraft.client.gui.ActiveTextCollector' ; ignoreExitValue true }
     }
 }

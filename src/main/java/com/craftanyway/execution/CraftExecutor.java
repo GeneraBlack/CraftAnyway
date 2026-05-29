@@ -3,7 +3,7 @@ package com.craftanyway.execution;
 import com.craftanyway.planning.CraftingPlan;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -128,7 +128,7 @@ public class CraftExecutor {
         if (state == 0) {
             if (nodesToCraft.isEmpty()) {
                 isExecuting = false;
-                if (mc.player != null) mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("Crafting complete!"), false);
+                if (mc.player != null) mc.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Crafting complete!"));
                 return;
             }
             currentNode = nodesToCraft.remove(0);
@@ -157,13 +157,13 @@ public class CraftExecutor {
                             }
                             
                             // Safe placement sequence: Left-click stack -> Right-click slot -> Left-click stack back
-                            clickSlot(invSlot, 0, ClickType.PICKUP);
-                            clickSlot(gridSlot, 1, ClickType.PICKUP);
-                            clickSlot(invSlot, 0, ClickType.PICKUP);
+                            clickSlot(invSlot, 0, ContainerInput.PICKUP);
+                            clickSlot(gridSlot, 1, ContainerInput.PICKUP);
+                            clickSlot(invSlot, 0, ContainerInput.PICKUP);
                         } else {
                             // Missing item, abort
                             isExecuting = false;
-                            if (mc.player != null) mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("Missing items for craft! Aborting."), false);
+                            if (mc.player != null) mc.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Missing items for craft! Aborting."));
                             return;
                         }
                     }
@@ -177,26 +177,25 @@ public class CraftExecutor {
                 // Non-crafting step, pause execution
                 isExecuting = false;
                 if (mc.player != null) {
-                    mc.player.displayClientMessage(
+                    mc.player.sendSystemMessage(
                         net.minecraft.network.chat.Component.literal("Paused! Please manually produce: " 
                             + ((ItemStack)currentNode.getOutput().getIngredient()).getHoverName().getString() 
                             + " via " + currentNode.getCategoryName() 
-                            + ". Press 'Craft Plan' to resume once you have it."), 
-                        false
+                            + ". Press 'Craft Plan' to resume once you have it.")
                     );
                 }
                 return;
             }
         } else if (state == 2) {
             // Click output slot
-            clickSlot(0, 0, ClickType.QUICK_MOVE); // Shift click output
+            clickSlot(0, 0, ContainerInput.QUICK_MOVE); // Shift click output
             state = 3;
             currentTickDelay = TICK_DELAY;
         } else if (state == 3) {
             // Clear grid of any remaining items (like empty buckets or leftover items)
             for (int i = 1; i <= 9; i++) {
                 if (!currentScreen.getMenu().getSlot(i).getItem().isEmpty()) {
-                    clickSlot(i, 0, ClickType.QUICK_MOVE);
+                    clickSlot(i, 0, ContainerInput.QUICK_MOVE);
                 }
             }
             state = 0;
@@ -204,11 +203,11 @@ public class CraftExecutor {
         }
     }
     
-    private static void clickSlot(int slot, int button, ClickType clickType) {
+    private static void clickSlot(int slot, int button, ContainerInput clickType) {
         if (currentScreen == null) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.gameMode != null && mc.player != null) {
-            mc.gameMode.handleInventoryMouseClick(
+            mc.gameMode.handleContainerInput(
                 currentScreen.getMenu().containerId, 
                 slot, 
                 button, 
