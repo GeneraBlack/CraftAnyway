@@ -102,7 +102,10 @@ public class PlanScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Dark grey background as requested in mockup
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, -10);
         guiGraphics.fill(0, 0, this.width, this.height, 0xFF2B2B2B);
+        guiGraphics.pose().popPose();
     }
 
     @Override
@@ -146,14 +149,11 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().popPose();
 
         // Render Sidebar
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 1); // Elevate above background
         guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
         guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
         
         guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFF);
         guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
-        guiGraphics.pose().popPose();
         
         if (!plans.isEmpty()) {
             CraftingPlan.PlanResult result = plans.get(0).calculateRequirements(this.minecraft.player != null ? this.minecraft.player.getInventory() : null);
@@ -196,10 +196,7 @@ public class PlanScreen extends Screen {
             renderDropdown(guiGraphics, mouseX, mouseY);
         }
         
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 10);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
-        guiGraphics.pose().popPose();
     }
     
     private <T> IRecipeLayoutDrawable<T> getJeiDrawable(CraftingPlan.PlanNode node) {
