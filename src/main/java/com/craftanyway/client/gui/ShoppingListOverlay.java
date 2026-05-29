@@ -49,11 +49,11 @@ public class ShoppingListOverlay {
             guiGraphics.pose().translate(0, 0); // Elevate entire shopping list
     
             int ry = y;
-            guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFAA);
+            guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFFFAA);
             ry += 15;
     
             for (CraftingPlan.CraftingStep step : result.steps) {
-                guiGraphics.drawString(mc.font, "Step " + step.stepNumber + ":", x, ry, 0xAAAAAA);
+                guiGraphics.drawString(mc.font, "Step " + step.stepNumber + ":", x, ry, 0xFFAAAAAA);
                 ry += 12;
     
                 for (CraftingPlan.StepItem stepItem : step.items.values()) {
@@ -69,7 +69,7 @@ public class ShoppingListOverlay {
     
                     guiGraphics.pose().pushMatrix();
                     guiGraphics.pose().translate(0, 0); // Elevate text above items
-                    int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
+                    int color = have >= needed ? 0xFF55FF55 : 0xFFFFFFFF;
                     guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
                     guiGraphics.pose().popMatrix();
                     ry += 20;
