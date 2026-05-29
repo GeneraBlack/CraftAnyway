@@ -18,10 +18,8 @@ import org.lwjgl.glfw.GLFW;
 public class Keybinds {
     public static final KeyMapping PLAN_KEY = new KeyMapping(
             "key.craftanyway.plan",
-            KeyConflictContext.GUI,
-            InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_P,
-            "key.categories.craftanyway"
+            new net.minecraft.client.KeyMapping.Category(net.minecraft.resources.Identifier.fromNamespaceAndPath("craftanyway", "main"))
     );
 
     public static void register(IEventBus modEventBus) {
@@ -35,13 +33,13 @@ public class Keybinds {
     }
 
     private static void onKeyInput(InputEvent.Key event) {
-        if (event.getAction() == GLFW.GLFW_PRESS && PLAN_KEY.isActiveAndMatches(InputConstants.getKey(event.getKey(), event.getScanCode()))) {
+        if (event.getAction() == GLFW.GLFW_PRESS && PLAN_KEY.isActiveAndMatches(InputConstants.Type.KEYSYM.getOrCreate(event.getKey()))) {
             tryOpenPlanUI();
         }
     }
 
     private static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
-        if (PLAN_KEY.isActiveAndMatches(InputConstants.getKey(event.getKeyCode(), event.getScanCode()))) {
+        if (PLAN_KEY.isActiveAndMatches(InputConstants.Type.KEYSYM.getOrCreate(event.getKeyCode()))) {
             if (tryOpenPlanUI()) {
                 event.setCanceled(true); // Consume the keypress so the screen doesn't process it (e.g., closing or typing 'p')
             }
