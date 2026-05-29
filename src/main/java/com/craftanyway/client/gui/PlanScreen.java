@@ -135,7 +135,11 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().scale((float) zoom, (float) zoom, 1f);
         
         if (!plans.isEmpty()) {
-            drawNodeOverlays(guiGraphics, plans.get(0).getRootNode(), (this.width - sidebarWidth) / 2, 50, mouseX, mouseY);
+            try {
+                drawNodeOverlays(guiGraphics, plans.get(0).getRootNode(), (this.width - sidebarWidth) / 2, 50, mouseX, mouseY);
+            } catch (Exception e) {
+                // Ignore exception to prevent skipping disableScissor
+            }
         }
         
         guiGraphics.disableScissor();
@@ -165,7 +169,7 @@ public class PlanScreen extends Screen {
                     
                     String text = stepItem.have + "/" + stepItem.needed;
                     guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(0, 0, 200); // Elevate amount above items
+                    guiGraphics.pose().translate(0, 0, 400); // Elevate amount high above items
                     guiGraphics.pose().scale(0.75f, 0.75f, 1f);
                     guiGraphics.drawString(this.font, text, (int)((rx + 1) / 0.75f), (int)((ry + 17) / 0.75f), 0xAAAAAA);
                     guiGraphics.pose().popPose();
@@ -254,13 +258,13 @@ public class PlanScreen extends Screen {
         int recX = x + 2;
         
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 5); // Ensure boxes render above background
+        guiGraphics.pose().translate(0, 0, 400); // Ensure boxes render above everything including items
         guiGraphics.fill(catX, dropY, catX + catWidth, dropY + 12, 0xFF555555);
         guiGraphics.fill(recX, dropY, recX + recWidth, dropY + 12, 0xFF555555);
         guiGraphics.pose().popPose();
 
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 6); // Ensure text renders above boxes
+        guiGraphics.pose().translate(0, 0, 401); // Ensure text renders above boxes
         guiGraphics.drawString(this.font, node.getCategoryName(), catX + 5, dropY + 2, 0xFFFFFF);
         guiGraphics.drawString(this.font, recName, recX + 5, dropY + 2, 0xFFFFFF);
         guiGraphics.pose().popPose();
@@ -637,7 +641,7 @@ public class PlanScreen extends Screen {
 
     private void renderIngredientDecorations(GuiGraphics guiGraphics, ITypedIngredient<?> typedIng, int x, int y, String text) {
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 200);
+        guiGraphics.pose().translate(0, 0, 400); // Elevate above items
         guiGraphics.drawString(this.font, text, x + 17 - this.font.width(text), y + 9, 16777215, true);
         guiGraphics.pose().popPose();
     }

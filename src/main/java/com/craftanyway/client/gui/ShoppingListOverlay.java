@@ -34,45 +34,53 @@ public class ShoppingListOverlay {
     }
 
     private static void renderShoppingList(GuiGraphics guiGraphics, int x, int y) {
-        CraftingPlan plan = RecipePlanner.getCurrentPlan();
-        if (plan == null) return;
-
-        Minecraft mc = Minecraft.getInstance();
-        Inventory inv = mc.player != null ? mc.player.getInventory() : null;
-
-        CraftingPlan.PlanResult result = plan.calculateRequirements(inv);
-
-        if (result.steps.isEmpty()) return;
-
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 250); // Elevate entire shopping list
-
-        int ry = y;
-        guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFAA);
-        ry += 15;
-
-        for (CraftingPlan.CraftingStep step : result.steps) {
-            guiGraphics.drawString(mc.font, "Step " + step.stepNumber + ":", x, ry, 0xAAAAAA);
-            ry += 12;
-
-            for (CraftingPlan.StepItem stepItem : step.items.values()) {
-                mezz.jei.api.ingredients.ITypedIngredient<?> stack = stepItem.ingredient;
-                int have = (int) stepItem.have;
-                int needed = (int) stepItem.needed;
-
-                var renderer = com.craftanyway.jei.CraftAnywayJeiPlugin.getJeiRuntime().getIngredientManager().getIngredientRenderer(stack.getType());
-                guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(x, ry, 0);
-                ((mezz.jei.api.ingredients.IIngredientRenderer<Object>)renderer).render(guiGraphics, stack.getIngredient());
-                guiGraphics.pose().popPose();
-
-                int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
-                guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
-                ry += 20;
+        try {
+            CraftingPlan plan = RecipePlanner.getCurrentPlan();
+            if (plan == null) return;
+    
+            Minecraft mc = Minecraft.getInstance();
+            Inventory inv = mc.player != null ? mc.player.getInventory() : null;
+    
+            CraftingPlan.PlanResult result = plan.calculateRequirements(inv);
+    
+            if (result.steps.isEmpty()) return;
+    
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 250); // Elevate entire shopping list
+    
+            int ry = y;
+            guiGraphics.drawString(mc.font, "Crafting Steps:", x, ry, 0xFFFFAA);
+            ry += 15;
+    
+            for (CraftingPlan.CraftingStep step : result.steps) {
+                guiGraphics.drawString(mc.font, "Step " + step.stepNumber + ":", x, ry, 0xAAAAAA);
+                ry += 12;
+    
+                for (CraftingPlan.StepItem stepItem : step.items.values()) {
+                    mezz.jei.api.ingredients.ITypedIngredient<?> stack = stepItem.ingredient;
+                    int have = (int) stepItem.have;
+                    int needed = (int) stepItem.needed;
+    
+                    var renderer = com.craftanyway.jei.CraftAnywayJeiPlugin.getJeiRuntime().getIngredientManager().getIngredientRenderer(stack.getType());
+                    guiGraphics.pose().pushPose();
+                    guiGraphics.pose().translate(x, ry, 0);
+                    ((mezz.jei.api.ingredients.IIngredientRenderer<Object>)renderer).render(guiGraphics, stack.getIngredient());
+                    guiGraphics.pose().popPose();
+    
+                    guiGraphics.pose().pushPose();
+                    guiGraphics.pose().translate(0, 0, 250); // Elevate text above items
+                    int color = have >= needed ? 0x55FF55 : 0xFFFFFF;
+                    guiGraphics.drawString(mc.font, have + "/" + needed, x + 20, ry + 4, color);
+                    guiGraphics.pose().popPose();
+                    ry += 20;
+                }
+                ry += 5;
             }
-            ry += 5;
+            
+            guiGraphics.pose().popPose();
+        } catch (Exception e) {
+            // Ignore exception to prevent silent overlay crash
         }
-        guiGraphics.pose().popPose();
     }
 
     private static int gcd(int a, int b) {
