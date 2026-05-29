@@ -105,6 +105,7 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0);
         guiGraphics.fill(0, 0, this.width, this.height, 0xFF2B2B2B);
+        guiGraphics.nextStratum();
         guiGraphics.pose().popMatrix();
     }
 
@@ -150,7 +151,8 @@ public class PlanScreen extends Screen {
 
         // Render Sidebar
         guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
-        guiGraphics.fill(sidebarWidth, 0, 2, this.height, 0xFF111111); // separator
+        guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
+        guiGraphics.nextStratum();
         
         guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFF);
         guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
@@ -262,9 +264,10 @@ public class PlanScreen extends Screen {
         
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Ensure boxes render above everything including items
-        guiGraphics.fill(catX, dropY, catWidth, 12, 0xFF555555);
-        guiGraphics.fill(recX, dropY, recWidth, 12, 0xFF555555);
+        guiGraphics.fill(catX, dropY, catX + catWidth, dropY + 12, 0xFF555555);
+        guiGraphics.fill(recX, dropY, recX + recWidth, dropY + 12, 0xFF555555);
         guiGraphics.pose().popMatrix();
+        guiGraphics.nextStratum();
 
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Ensure text renders above boxes
@@ -283,11 +286,12 @@ public class PlanScreen extends Screen {
             guiGraphics.pose().pushMatrix();
             guiGraphics.pose().translate(0, 0); // Ensure it renders above background
             // Draw a grey background panel for the JEI recipe since JEI 1.21 doesn't draw it automatically
-            guiGraphics.fill(drawX - 5, nextY - 5, drawable.getRect().getWidth() + 10, drawable.getRect().getHeight() + 10, 0xFFC6C6C6);
+            guiGraphics.fill(drawX - 5, nextY - 5, drawX + drawable.getRect().getWidth() + 5, nextY + drawable.getRect().getHeight() + 5, 0xFFC6C6C6);
             
             // Draw a dark border
             guiGraphics.renderOutline(drawX - 5, nextY - 5, drawable.getRect().getWidth() + 10, drawable.getRect().getHeight() + 10, 0xFF555555);
             guiGraphics.pose().popMatrix();
+            guiGraphics.nextStratum();
             
             // Adjust mouse coordinates to match zoom/pan for JEI internal checks
             int localMouseX = (int)((mouseX - panX) / zoom);
@@ -325,10 +329,11 @@ public class PlanScreen extends Screen {
                 int midY = nextY + 15;
                 guiGraphics.pose().pushMatrix();
                 guiGraphics.pose().translate(0, 0); // ensure lines are above background
-                guiGraphics.fill(x, nextY, 2, midY - nextY, 0xFF555555);
-                guiGraphics.fill(Math.min(x, childX), midY, Math.abs(childX - x) + 2, 2, 0xFF555555);
-                guiGraphics.fill(childX, midY, 2, childY - midY, 0xFF555555);
+                guiGraphics.fill(x, nextY, x + 2, midY, 0xFF555555);
+                guiGraphics.fill(Math.min(x, childX), midY, Math.max(x, childX) + 2, midY + 2, 0xFF555555);
+                guiGraphics.fill(childX, midY, childX + 2, childY, 0xFF555555);
                 guiGraphics.pose().popMatrix();
+                guiGraphics.nextStratum();
 
                 drawNodeTree(guiGraphics, children.get(i), childX, childY, mouseX, mouseY);
 
@@ -570,14 +575,15 @@ public class PlanScreen extends Screen {
         guiGraphics.pose().pushMatrix();
         guiGraphics.pose().translate(0, 0); // Very high Z
         
-        guiGraphics.fill(dropdownX, dropdownY, width, height, 0xEE111111);
+        guiGraphics.fill(dropdownX, dropdownY, dropdownX + width, dropdownY + height, 0xEE111111);
         guiGraphics.renderOutline(dropdownX, dropdownY, width, height, 0xFFAAAAAA);
+        guiGraphics.nextStratum();
         
         int cy = dropdownY;
         for (RecipePlanner.RecipeOption opt : currentDropdownOptions) {
             boolean hovered = mouseX >= dropdownX && mouseX <= dropdownX + width && mouseY >= cy && mouseY <= cy + rowHeight;
             if (hovered) {
-                guiGraphics.fill(dropdownX + 1, cy, width - 2, rowHeight, 0x55FFFFFF);
+                guiGraphics.fill(dropdownX + 1, cy, dropdownX + width - 1, cy + rowHeight, 0x55FFFFFF);
             }
             
             String text = isCategoryDropdown ? opt.name : opt.recipeId;
