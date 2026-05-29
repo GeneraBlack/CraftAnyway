@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -28,6 +29,8 @@ public class PlanScreen extends Screen {
     private double zoom = 1.0;
     private ITypedIngredient<?> targetIngredient;
     private long targetQuantity;
+
+    private EditBox quantityField;
 
     private Map<CraftingPlan.PlanNode, IRecipeLayoutDrawable<?>> jeiLayouts = new HashMap<>();
     
@@ -55,6 +58,10 @@ public class PlanScreen extends Screen {
         super.init();
         
         if (targetIngredient != null) {
+            this.quantityField = new EditBox(this.font, 45, 20, 50, 20, Component.literal("Quantity"));
+            this.quantityField.setValue(String.valueOf(targetQuantity));
+            this.addRenderableWidget(this.quantityField);
+
             this.addRenderableWidget(Button.builder(Component.literal("-"), btn -> {
                 if (targetQuantity > 1) {
                     targetQuantity--;
@@ -67,7 +74,19 @@ public class PlanScreen extends Screen {
                     targetQuantity++;
                     refreshPlan();
                 }
-            }).bounds(140, 20, 20, 20).build());
+            }).bounds(125, 20, 20, 20).build());
+
+            this.addRenderableWidget(Button.builder(Component.literal("Set"), btn -> {
+                try {
+                    int newVal = Integer.parseInt(this.quantityField.getValue());
+                    if (newVal > 0) {
+                        targetQuantity = newVal;
+                        refreshPlan();
+                    }
+                } catch (NumberFormatException e) {
+                    // Ignore invalid input
+                }
+            }).bounds(150, 20, 35, 20).build());
         }
     }
     
@@ -126,7 +145,7 @@ public class PlanScreen extends Screen {
         guiGraphics.fill(0, 0, sidebarWidth, this.height, 0xFF353535);
         guiGraphics.fill(sidebarWidth, 0, sidebarWidth + 2, this.height, 0xFF111111); // separator
         
-        guiGraphics.drawString(this.font, "Qty: " + (targetIngredient != null ? targetQuantity : 1), 20, 26, 0xFFFFFF);
+        guiGraphics.drawString(this.font, "Qty:", 20, 26, 0xFFFFFF);
         
         guiGraphics.drawString(this.font, "Step-by-Step Breakdown:", 10, 50, 0xFFFFFFFF);
         
@@ -384,6 +403,23 @@ public class PlanScreen extends Screen {
         return Math.max(myWidth, total);
     }
     
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.quantityField != null && this.quantityField.isFocused() && (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)) {
+            try {
+                int newVal = Integer.parseInt(this.quantityField.getValue());
+                if (newVal > 0) {
+                    targetQuantity = newVal;
+                    refreshPlan();
+                }
+            } catch (NumberFormatException e) {
+                // Ignore
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (activeDropdownNode != null) {
